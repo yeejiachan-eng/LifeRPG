@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <!-- 視口設定：確保在所有手機上正確縮放且不被瀏海遮擋 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>LifeRPG</title>
     
@@ -13,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
-        /* 全局設定 */
+        /* --- 基礎設定 --- */
         html, body {
             margin: 0;
             padding: 0;
@@ -21,42 +22,47 @@
             font-family: 'Inter', 'Noto Sans TC', sans-serif;
             color: #f1f5f9;
             -webkit-tap-highlight-color: transparent;
-            /* 關鍵：防止橫向捲動 */
-            overflow-x: hidden; 
+            overflow: hidden; /* 禁止瀏覽器層級捲動 */
             width: 100%;
+            height: 100%;
+            position: fixed; /* 鎖定畫面 */
         }
 
         #root {
             width: 100%;
-            min-height: 100vh;
+            height: 100%;
             display: flex;
             flex-direction: column;
-            overflow-x: hidden; /* 雙重保險 */
+            overflow-y: auto; /* 允許垂直捲動 */
+            overflow-x: hidden; /* 禁止水平捲動 */
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* 強制輸入框字體，防止 iOS 縮放 */
+        /* 防止輸入框點擊時放大 */
         input, select, textarea {
             font-size: 16px !important; 
         }
 
+        /* 隱藏捲軸 */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+        /* 安全區域 */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
+
         /* 動畫 */
         @keyframes bounce {
-            0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8,0,1,1); }
-            50% { transform: translateY(0); animation-timing-function: cubic-bezier(0,0,0.2,1); }
+            0%, 100% { transform: translateY(-25%); }
+            50% { transform: translateY(0); }
         }
         .animate-bounce { animation: bounce 1s infinite; }
         
         @keyframes slide-in {
-            from { transform: translate(-50%, 100%); opacity: 0; }
-            to { transform: translate(-50%, 0); opacity: 1; }
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
         .animate-slide-in { animation: slide-in 0.3s ease-out forwards; }
-
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
     </style>
 </head>
 <body>
@@ -71,6 +77,7 @@
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save
         } = LucideReact;
 
+        // --- UI 元件 ---
         const Card = ({ children, className = "" }) => (
             <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden w-full ${className}`}>
                 {children}
@@ -86,7 +93,7 @@
                 outline: "border border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white"
             };
             return (
-                <button onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button onClick={onClick} disabled={disabled} className={`px-4 py-3 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     {children}
                 </button>
             );
@@ -104,13 +111,13 @@
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-hidden">
-                    <div className="bg-slate-800 border border-slate-600 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm px-4">
+                    <div className="bg-slate-800 border border-slate-600 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[85vh] animate-slide-in">
                         <div className="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                            <h3 className="text-xl font-bold text-white">{title}</h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24} /></button>
+                            <h3 className="text-lg font-bold text-white">{title}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white p-1"><X size={24} /></button>
                         </div>
-                        <div className="p-6 overflow-y-auto">
+                        <div className="p-4 overflow-y-auto">
                             {children}
                         </div>
                     </div>
@@ -122,13 +129,14 @@
             if (!message) return null;
             const bgColors = { success: "bg-emerald-600", error: "bg-red-600", info: "bg-indigo-600" };
             return (
-                <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-[90vw] max-w-md justify-between`}>
-                    <span className="truncate text-sm">{message}</span>
-                    <button onClick={onClose} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={16} /></button>
+                <div className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[60] flex items-center justify-between gap-3 px-4 py-3 rounded-lg shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-[90%] max-w-sm`}>
+                    <span className="truncate text-sm font-medium">{message}</span>
+                    <button onClick={onClose} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={18} /></button>
                 </div>
             );
         };
 
+        // --- 主程式 ---
         function LifeRPG() {
             const [user, setUser] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-user-v2');
@@ -245,7 +253,7 @@
             };
 
             const handleManualReset = () => {
-                if(window.confirm("確定要強制重置所有任務為「未完成」嗎？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("所有任務已強制重置為未完成", "info"); setShowSettings(false); }
+                if(window.confirm("重置所有任務狀態？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("已重置", "info"); setShowSettings(false); }
             };
             const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("任務已刪除", "error"); };
             const handleAddTask = (e) => {
@@ -263,7 +271,7 @@
                 showNotification("新增獎勵", "success");
             };
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
-            const handleClearHistory = () => { if(window.confirm("確定要清除所有紀錄嗎？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
+            const handleClearHistory = () => { if(window.confirm("清除所有紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
 
             const handleExportData = () => {
                 const data = { user, tasks, rewards, history, appState, version: "1.0" };
@@ -290,7 +298,7 @@
                         if(data.rewards) setRewards(data.rewards);
                         if(data.history) setHistory(data.history);
                         if(data.appState) setAppState(data.appState);
-                        showNotification("資料還原成功！", "success");
+                        showNotification("還原成功！", "success");
                         setShowSettings(false);
                     } catch (err) {
                         showNotification("檔案格式錯誤", "error");
@@ -339,110 +347,111 @@
             });
 
             return (
-                <div className="w-full min-h-screen flex flex-col">
+                <div className="w-full min-h-full flex flex-col">
                     {notification && <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
 
-                    {/* Header (Fixed) */}
+                    {/* Header */}
                     <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full pt-safe px-4 pb-4 shrink-0">
-                        <div className="max-w-3xl mx-auto space-y-4">
+                        <div className="w-full max-w-lg mx-auto space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">人生 RPG</h1>
+                                    <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">人生 RPG</h1>
                                     <div className="text-xs text-slate-500 font-mono">完成 {user.totalTasksCompleted} 任務</div>
                                 </div>
-                                <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700">
+                                <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white border border-slate-700">
                                     <Settings size={20} />
                                 </button>
                             </div>
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-rose-400"><Heart size={12} /> 生活 LV {user.base.level}</span><span className="text-slate-500">{user.base.xp}/{user.base.maxXp}</span></div>
-                                <ProgressBar current={user.base.xp} max={user.base.maxXp} colorClass="bg-gradient-to-r from-rose-500 to-pink-500" height="h-2" />
-                            </div>
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-cyan-400"><Briefcase size={12} /> 職涯 LV {user.job.level}</span><span className="text-slate-500">{user.job.xp}/{user.job.maxXp}</span></div>
-                                <ProgressBar current={user.job.xp} max={user.job.maxXp} colorClass="bg-gradient-to-r from-cyan-500 to-blue-500" height="h-2" />
+                            <div className="space-y-2">
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-rose-400"><Heart size={10} /> 生活 LV {user.base.level}</span><span className="text-slate-500">{user.base.xp}/{user.base.maxXp}</span></div>
+                                    <ProgressBar current={user.base.xp} max={user.base.maxXp} colorClass="bg-gradient-to-r from-rose-500 to-pink-500" height="h-1.5" />
+                                </div>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-cyan-400"><Briefcase size={10} /> 職涯 LV {user.job.level}</span><span className="text-slate-500">{user.job.xp}/{user.job.maxXp}</span></div>
+                                    <ProgressBar current={user.job.xp} max={user.job.maxXp} colorClass="bg-gradient-to-r from-cyan-500 to-blue-500" height="h-1.5" />
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Scrollable Content Area */}
-                    <main className="flex-1 w-full max-w-3xl mx-auto p-4 pb-32 overflow-x-hidden">
+                    <main className="flex-1 w-full max-w-lg mx-auto p-4 pb-32 overflow-x-hidden">
                         
-                        {/* Tabs */}
-                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
-                            <button onClick={() => setActiveTab('tasks')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'tasks' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}><CheckCircle2 size={20} /> 任務</button>
-                            <button onClick={() => setActiveTab('rewards')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'rewards' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Trophy size={20} /> 獎勵</button>
-                            <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Calendar size={20} /> 紀錄</button>
+                        {/* Tabs - Grid Layout ensures fit */}
+                        <div className="grid grid-cols-3 gap-2 mb-6 w-full">
+                            <button onClick={() => setActiveTab('tasks')} className={`py-2 rounded-lg font-bold flex items-center justify-center gap-1 text-sm ${activeTab === 'tasks' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}><CheckCircle2 size={16} /> 任務</button>
+                            <button onClick={() => setActiveTab('rewards')} className={`py-2 rounded-lg font-bold flex items-center justify-center gap-1 text-sm ${activeTab === 'rewards' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Trophy size={16} /> 獎勵</button>
+                            <button onClick={() => setActiveTab('history')} className={`py-2 rounded-lg font-bold flex items-center justify-center gap-1 text-sm ${activeTab === 'history' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Calendar size={16} /> 紀錄</button>
                         </div>
 
                         {/* Tasks Tab */}
                         {activeTab === 'tasks' && (
-                            <div className="space-y-6 animate-slide-in w-full max-w-full">
-                                <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex w-full">
-                                    <button onClick={() => setQuestFilter('all')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>全部</button>
-                                    <button onClick={() => setQuestFilter('base')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'base' ? 'bg-rose-600 text-white' : 'text-slate-400'}`}>基礎</button>
-                                    <button onClick={() => setQuestFilter('job')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'job' ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}>職涯</button>
+                            <div className="space-y-4 w-full">
+                                {/* Filter - Grid Layout */}
+                                <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 grid grid-cols-3 gap-1 w-full">
+                                    <button onClick={() => setQuestFilter('all')} className={`py-2 text-xs font-medium rounded-lg ${questFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>全部</button>
+                                    <button onClick={() => setQuestFilter('base')} className={`py-2 text-xs font-medium rounded-lg ${questFilter === 'base' ? 'bg-rose-600 text-white' : 'text-slate-400'}`}>基礎</button>
+                                    <button onClick={() => setQuestFilter('job')} className={`py-2 text-xs font-medium rounded-lg ${questFilter === 'job' ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}>職涯</button>
                                 </div>
 
-                                <Card className="p-4 bg-slate-900/50 w-full">
+                                {/* Add Task Form - Responsive Stack */}
+                                <Card className="p-3 bg-slate-900/50">
                                     <form onSubmit={handleAddTask} className="flex flex-col gap-3 w-full">
-                                        <div className="flex flex-col gap-3 w-full">
-                                            <input type="text" placeholder="任務名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
-                                            
-                                            {/* 使用 Flex Wrap 來處理過寬的問題 */}
-                                            <div className="flex flex-wrap gap-2 w-full">
-                                                <select className="flex-1 min-w-[120px] bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
-                                                    {Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
-                                                </select>
-                                                <select className="flex-1 min-w-[120px] bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
-                                                    <option value="daily">每日</option>
-                                                    <option value="weekly">每週</option>
-                                                    <option value="none">一次</option>
-                                                </select>
-                                            </div>
-                                            
-                                            <div className="flex flex-wrap gap-2 w-full">
-                                                 <select className="flex-1 min-w-[120px] bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
-                                                    <option value="10">10 XP</option>
-                                                    <option value="20">20 XP</option>
-                                                    <option value="30">30 XP</option>
-                                                    <option value="50">50 XP</option>
-                                                </select>
-                                                <Button variant="primary" className="flex-1 min-w-[100px]"><Plus size={20} /> 新增</Button>
-                                            </div>
+                                        <input type="text" placeholder="輸入任務名稱..." className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-3 text-white focus:outline-none focus:border-indigo-500 text-sm" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
+                                        
+                                        <div className="grid grid-cols-2 gap-2 w-full">
+                                            <select className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm w-full" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
+                                                {Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
+                                            </select>
+                                            <select className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm w-full" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
+                                                <option value="daily">每日</option>
+                                                <option value="weekly">每週</option>
+                                                <option value="none">一次</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-3 gap-2 w-full">
+                                             <select className="col-span-2 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm w-full" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
+                                                <option value="10">10 XP</option>
+                                                <option value="20">20 XP</option>
+                                                <option value="30">30 XP</option>
+                                                <option value="50">50 XP</option>
+                                            </select>
+                                            <Button variant="primary" className="py-2 text-sm"><Plus size={18} /></Button>
                                         </div>
                                     </form>
                                 </Card>
 
-                                <div className="flex flex-wrap justify-between items-center gap-3 w-full">
-                                    <h2 className="text-lg font-bold text-white shrink-0">進行中 ({filteredTasks.length})</h2>
-                                    <div className="flex flex-wrap gap-2 justify-end">
-                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 border border-cyan-500/20 rounded px-2 py-2"><HardHat size={14} /> 環工包</button>
-                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 border border-indigo-500/20 rounded px-2 py-2"><Download size={14} /> 新手包</button>
+                                <div className="flex flex-wrap justify-between items-center gap-2 w-full">
+                                    <h2 className="text-sm font-bold text-white">進行中 ({filteredTasks.length})</h2>
+                                    <div className="flex gap-2">
+                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 border border-cyan-500/20 rounded px-2 py-1 bg-cyan-950/30"><HardHat size={12} /> 環工</button>
+                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 border border-indigo-500/20 rounded px-2 py-1 bg-indigo-950/30"><Download size={12} /> 新手</button>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3 w-full">
-                                    {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic">暫無任務</div>}
+                                    {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic text-sm">暫無任務</div>}
                                     {filteredTasks.sort((a,b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1).map((task) => {
                                         const cat = categories[task.category] || categories.general;
                                         const xpType = cat.type === 'base' ? '基礎' : '職涯';
                                         const xpColor = cat.type === 'base' ? 'text-rose-400' : 'text-cyan-400';
                                         return (
-                                            <div key={task.id} className={`relative group flex items-center justify-between p-4 rounded-xl border w-full ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
+                                            <div key={task.id} className={`relative flex items-center justify-between p-3 rounded-xl border w-full ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
                                                 <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
-                                                    <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-10 w-10 rounded-full flex items-center justify-center border-2 ${task.completed ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
-                                                        {task.completed ? <CheckCircle2 size={20} /> : <div className="h-3 w-3 rounded-full bg-current opacity-20" />}
+                                                    <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center border-2 ${task.completed ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
+                                                        {task.completed ? <CheckCircle2 size={16} /> : <div className="h-2 w-2 rounded-full bg-current opacity-20" />}
                                                     </button>
-                                                    <div className="min-w-0 flex-1 truncate">
-                                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-0.5">
                                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 ${cat.color} ${cat.bg}`}>{cat.icon} {cat.label}</span>
                                                             <span className={`text-[10px] font-mono ${xpColor}`}>+{task.xp} {xpType}</span>
                                                         </div>
                                                         <h3 className={`font-medium truncate text-sm ${task.completed ? 'line-through text-slate-500' : 'text-white'}`}>{task.title}</h3>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 text-slate-500 hover:text-red-400 ml-1 shrink-0"><Trash2 size={18} /></button>
+                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 text-slate-500 hover:text-red-400 ml-1 shrink-0"><Trash2 size={16} /></button>
                                             </div>
                                         );
                                     })}
@@ -452,21 +461,21 @@
 
                         {/* Rewards Tab */}
                         {activeTab === 'rewards' && (
-                            <div className="space-y-6 animate-slide-in w-full">
-                                <Card className="p-4 bg-slate-900/50">
+                            <div className="space-y-4 animate-slide-in w-full">
+                                <Card className="p-3 bg-slate-900/50">
                                     <div className="flex flex-col gap-3 w-full">
-                                        <input type="text" placeholder="獎勵名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
-                                        <div className="flex gap-2">
-                                            <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
+                                        <input type="text" placeholder="獎勵名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-3 text-white text-sm focus:outline-none" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <select className="col-span-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
                                                 <option value="base">基礎</option>
                                                 <option value="job">職涯</option>
                                             </select>
-                                            <input type="number" placeholder="等級" className="w-20 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-white" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
-                                            <Button variant="primary"><Plus size={20} /></Button>
+                                            <input type="number" placeholder="等級" className="col-span-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-white text-sm" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
+                                            <Button variant="primary" onClick={handleAddReward} className="py-2 text-sm"><Plus size={18} /></Button>
                                         </div>
                                     </div>
                                 </Card>
-                                <div className="grid grid-cols-1 gap-3">
+                                <div className="grid grid-cols-1 gap-3 pb-12">
                                     {rewards.sort((a,b) => a.levelReq - b.levelReq).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         return (
@@ -487,12 +496,12 @@
                         )}
 
                          {activeTab === 'history' && (
-                             <div className="space-y-6 animate-slide-in w-full">
+                             <div className="space-y-6 animate-slide-in w-full pb-12">
                                 <div className="flex justify-between items-center">
-                                    <h2 className="text-lg font-bold text-white">紀錄</h2>
+                                    <h2 className="text-sm font-bold text-white">紀錄</h2>
                                     <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400 hover:text-red-400"><Trash2 size={12} /> 清除</button>
                                 </div>
-                                {history.length === 0 ? <div className="text-center text-slate-500 italic">無紀錄</div> : (
+                                {history.length === 0 ? <div className="text-center py-12 text-slate-500 italic border border-dashed border-slate-800 rounded-xl text-sm">尚無紀錄</div> : (
                                     <div className="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
@@ -501,11 +510,11 @@
                                                 <div className="space-y-2">
                                                     {entries.map(entry => (
                                                         <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className={`w-2 h-2 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
-                                                                <span className="text-sm text-slate-200">{entry.title}</span>
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                <div className={`w-2 h-2 shrink-0 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
+                                                                <span className="text-sm text-slate-200 truncate">{entry.title}</span>
                                                             </div>
-                                                            <span className="text-xs text-indigo-400">+{entry.xp} XP</span>
+                                                            <span className="text-xs text-indigo-400 shrink-0">+{entry.xp}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -518,24 +527,24 @@
                     </main>
 
                     {/* Settings Modal */}
-                    <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="設定與資料">
+                    <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="設定">
                         <div className="space-y-4 w-full">
-                            <div className="bg-slate-900 p-4 rounded-xl space-y-3">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">資料備份</h4>
-                                <p className="text-xs text-slate-500">存檔至手機/電腦，或從檔案還原。</p>
-                                <div className="flex gap-2">
-                                    <button onClick={handleExportData} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 rounded-lg text-sm"><Save size={16} /> 匯出</button>
-                                    <label className="flex-1 flex items-center justify-center gap-2 bg-slate-700 text-white py-3 rounded-lg text-sm cursor-pointer">
-                                        <Upload size={16} /> 匯入
+                            <div className="bg-slate-900 p-4 rounded-xl space-y-3 border border-slate-700">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">資料備份</h4>
+                                <p className="text-xs text-slate-500">存檔至手機/電腦，或還原進度。</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={handleExportData} className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-xs"><Save size={14} /> 匯出</button>
+                                    <label className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg text-xs cursor-pointer">
+                                        <Upload size={14} /> 匯入
                                         <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
                                     </label>
                                 </div>
                             </div>
-                            <div className="bg-slate-900 p-4 rounded-xl space-y-3">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">重置</h4>
-                                <div className="space-y-2">
-                                    <button onClick={handleManualReset} className="w-full flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-lg text-sm"><RefreshCw size={16} /> 重置每日任務</button>
-                                    <button onClick={handleClearHistory} className="w-full flex items-center justify-center gap-2 bg-red-900/20 border border-red-900/50 text-red-400 py-3 rounded-lg text-sm"><Trash2 size={16} /> 清除所有紀錄</button>
+                            <div className="bg-slate-900 p-4 rounded-xl space-y-3 border border-slate-700">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">危險操作</h4>
+                                <div className="grid grid-cols-1 gap-2">
+                                    <button onClick={handleManualReset} className="flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 text-slate-300 py-2.5 rounded-lg text-xs"><RefreshCw size={14} /> 重置每日任務</button>
+                                    <button onClick={handleClearHistory} className="flex items-center justify-center gap-2 bg-red-900/20 border border-red-900/50 text-red-400 py-2.5 rounded-lg text-xs"><Trash2 size={14} /> 清除所有紀錄</button>
                                 </div>
                             </div>
                         </div>
