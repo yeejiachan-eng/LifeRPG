@@ -2,9 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 關鍵修正：鎖定縮放，並加入 viewport-fit=cover 適應瀏海屏 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - 人生 RPG</title>
+    <title>LifeRPG</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -14,33 +13,28 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
-        /* --- App Shell 模式：終極防位移修正 --- */
+        /* 全局設定 */
         html, body {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* 禁止 body 捲動 */
-            position: fixed; /* 固定頁面 */
             background-color: #020617;
             font-family: 'Inter', 'Noto Sans TC', sans-serif;
             color: #f1f5f9;
             -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
+            /* 關鍵：防止橫向捲動 */
+            overflow-x: hidden; 
+            width: 100%;
         }
 
         #root {
             width: 100%;
-            height: 100%;
-            overflow-y: auto; /* 垂直捲動 */
-            overflow-x: hidden; /* 強制禁止水平捲動 */
-            -webkit-overflow-scrolling: touch; /* iOS 滑順捲動 */
-            position: relative;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow-x: hidden; /* 雙重保險 */
         }
 
-        /* 強制輸入框字體大小 16px，防止 iOS 自動放大 */
+        /* 強制輸入框字體，防止 iOS 縮放 */
         input, select, textarea {
             font-size: 16px !important; 
         }
@@ -48,6 +42,7 @@
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+        /* 動畫 */
         @keyframes bounce {
             0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8,0,1,1); }
             50% { transform: translateY(0); animation-timing-function: cubic-bezier(0,0,0.2,1); }
@@ -76,7 +71,6 @@
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save
         } = LucideReact;
 
-        // --- Components ---
         const Card = ({ children, className = "" }) => (
             <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden w-full ${className}`}>
                 {children}
@@ -110,13 +104,15 @@
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-                    <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 bg-slate-800 z-10">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-hidden">
+                    <div className="bg-slate-800 border border-slate-600 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                             <h3 className="text-xl font-bold text-white">{title}</h3>
                             <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24} /></button>
                         </div>
-                        <div className="p-6">{children}</div>
+                        <div className="p-6 overflow-y-auto">
+                            {children}
+                        </div>
                     </div>
                 </div>
             );
@@ -126,14 +122,13 @@
             if (!message) return null;
             const bgColors = { success: "bg-emerald-600", error: "bg-red-600", info: "bg-indigo-600" };
             return (
-                <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-max max-w-[90vw]`}>
-                    <span className="truncate">{message}</span>
+                <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-[90vw] max-w-md justify-between`}>
+                    <span className="truncate text-sm">{message}</span>
                     <button onClick={onClose} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={16} /></button>
                 </div>
             );
         };
 
-        // --- Main App ---
         function LifeRPG() {
             const [user, setUser] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-user-v2');
@@ -179,7 +174,7 @@
             const [questFilter, setQuestFilter] = React.useState('all'); 
             const [levelUpData, setLevelUpData] = React.useState(null);
             const [notification, setNotification] = React.useState(null); 
-            const [showSettings, setShowSettings] = React.useState(false); // 確保有這行
+            const [showSettings, setShowSettings] = React.useState(false);
 
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2 });
@@ -197,7 +192,7 @@
                 setTimeout(() => setNotification(null), 3000);
             };
 
-            // Effects
+            // Effects & Logic
             React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); }, [user]);
             React.useEffect(() => { localStorage.setItem('liferpg-tasks', JSON.stringify(tasks)); }, [tasks]);
             React.useEffect(() => { localStorage.setItem('liferpg-rewards-v2', JSON.stringify(rewards)); }, [rewards]);
@@ -250,18 +245,9 @@
             };
 
             const handleManualReset = () => {
-                if(window.confirm("確定要強制重置所有任務為「未完成」嗎？")) {
-                    setTasks(tasks.map(t => ({ ...t, completed: false })));
-                    showNotification("所有任務已強制重置為未完成", "info");
-                    setShowSettings(false);
-                }
+                if(window.confirm("確定要強制重置所有任務為「未完成」嗎？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("所有任務已強制重置為未完成", "info"); setShowSettings(false); }
             };
-
-            const handleDeleteTask = (id) => {
-                setTasks(tasks.filter(t => t.id !== id));
-                showNotification("任務已刪除", "error");
-            };
-
+            const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("任務已刪除", "error"); };
             const handleAddTask = (e) => {
                 e.preventDefault();
                 if (!newTask.title.trim()) return;
@@ -269,7 +255,6 @@
                 setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
                 showNotification("新增成功", "success");
             };
-
             const handleAddReward = (e) => {
                 e.preventDefault();
                 if (!newReward.title.trim()) return;
@@ -277,16 +262,8 @@
                 setNewReward(prev => ({ ...prev, title: '' }));
                 showNotification("新增獎勵", "success");
             };
-
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
-
-            const handleClearHistory = () => {
-                if(window.confirm("確定要清除所有紀錄嗎？")) {
-                    setHistory([]);
-                    showNotification("歷史紀錄已清除", "info");
-                    setShowSettings(false);
-                }
-            };
+            const handleClearHistory = () => { if(window.confirm("確定要清除所有紀錄嗎？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
 
             const handleExportData = () => {
                 const data = { user, tasks, rewards, history, appState, version: "1.0" };
@@ -362,18 +339,17 @@
             });
 
             return (
-                <>
+                <div className="w-full min-h-screen flex flex-col">
                     {notification && <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
 
-                    {/* Header (Fixed at top) */}
-                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full pt-safe px-4 pb-4">
+                    {/* Header (Fixed) */}
+                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full pt-safe px-4 pb-4 shrink-0">
                         <div className="max-w-3xl mx-auto space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">人生 RPG</h1>
                                     <div className="text-xs text-slate-500 font-mono">完成 {user.totalTasksCompleted} 任務</div>
                                 </div>
-                                {/* 齒輪按鈕 - 確保顯示 */}
                                 <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors border border-slate-700">
                                     <Settings size={20} />
                                 </button>
@@ -390,7 +366,7 @@
                     </div>
 
                     {/* Scrollable Content Area */}
-                    <main className="flex-1 w-full max-w-3xl mx-auto p-4 pb-24">
+                    <main className="flex-1 w-full max-w-3xl mx-auto p-4 pb-32 overflow-x-hidden">
                         
                         {/* Tabs */}
                         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
@@ -399,63 +375,66 @@
                             <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Calendar size={20} /> 紀錄</button>
                         </div>
 
-                        {/* Content based on Tab */}
+                        {/* Tasks Tab */}
                         {activeTab === 'tasks' && (
-                            <div className="space-y-6 animate-slide-in w-full">
+                            <div className="space-y-6 animate-slide-in w-full max-w-full">
                                 <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex w-full">
                                     <button onClick={() => setQuestFilter('all')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>全部</button>
                                     <button onClick={() => setQuestFilter('base')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'base' ? 'bg-rose-600 text-white' : 'text-slate-400'}`}>基礎</button>
                                     <button onClick={() => setQuestFilter('job')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'job' ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}>職涯</button>
                                 </div>
 
-                                <Card className="p-4 bg-slate-900/50">
+                                <Card className="p-4 bg-slate-900/50 w-full">
                                     <form onSubmit={handleAddTask} className="flex flex-col gap-3 w-full">
-                                        <div className="flex flex-col gap-3">
-                                            <input type="text" placeholder="任務名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-indigo-500" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
-                                            <div className="flex gap-2">
-                                                <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300 focus:outline-none" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
+                                        <div className="flex flex-col gap-3 w-full">
+                                            <input type="text" placeholder="任務名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
+                                            
+                                            {/* 使用 Flex Wrap 來處理過寬的問題 */}
+                                            <div className="flex flex-wrap gap-2 w-full">
+                                                <select className="flex-1 min-w-[120px] bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
                                                     {Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
                                                 </select>
-                                                <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300 focus:outline-none" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
+                                                <select className="flex-1 min-w-[120px] bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
                                                     <option value="daily">每日</option>
                                                     <option value="weekly">每週</option>
                                                     <option value="none">一次</option>
                                                 </select>
                                             </div>
-                                            <div className="flex gap-2">
-                                                 <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300 focus:outline-none" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
+                                            
+                                            <div className="flex flex-wrap gap-2 w-full">
+                                                 <select className="flex-1 min-w-[120px] bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
                                                     <option value="10">10 XP</option>
                                                     <option value="20">20 XP</option>
                                                     <option value="30">30 XP</option>
                                                     <option value="50">50 XP</option>
                                                 </select>
-                                                <Button variant="primary" className="flex-1"><Plus size={20} /> 新增</Button>
+                                                <Button variant="primary" className="flex-1 min-w-[100px]"><Plus size={20} /> 新增</Button>
                                             </div>
                                         </div>
                                     </form>
                                 </Card>
 
-                                <div className="flex justify-between items-center flex-wrap gap-2">
-                                    <h2 className="text-lg font-bold text-white">進行中 ({filteredTasks.length})</h2>
-                                    <div className="flex gap-2">
-                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 border border-cyan-500/20 rounded px-2 py-1"><HardHat size={12} /> 環工包</button>
-                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 border border-indigo-500/20 rounded px-2 py-1"><Download size={12} /> 新手包</button>
+                                <div className="flex flex-wrap justify-between items-center gap-3 w-full">
+                                    <h2 className="text-lg font-bold text-white shrink-0">進行中 ({filteredTasks.length})</h2>
+                                    <div className="flex flex-wrap gap-2 justify-end">
+                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 border border-cyan-500/20 rounded px-2 py-2"><HardHat size={14} /> 環工包</button>
+                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 border border-indigo-500/20 rounded px-2 py-2"><Download size={14} /> 新手包</button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-3 pb-12">
+                                <div className="space-y-3 w-full">
                                     {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic">暫無任務</div>}
                                     {filteredTasks.sort((a,b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1).map((task) => {
                                         const cat = categories[task.category] || categories.general;
                                         const xpType = cat.type === 'base' ? '基礎' : '職涯';
                                         const xpColor = cat.type === 'base' ? 'text-rose-400' : 'text-cyan-400';
                                         return (
-                                            <div key={task.id} className={`relative group flex items-center justify-between p-4 rounded-xl border w-full transition-all duration-300 ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
-                                                <div className="flex items-center gap-4 overflow-hidden flex-1">
+                                            <div key={task.id} className={`relative group flex items-center justify-between p-4 rounded-xl border w-full ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
+                                                <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                                                     <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-10 w-10 rounded-full flex items-center justify-center border-2 ${task.completed ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
                                                         {task.completed ? <CheckCircle2 size={20} /> : <div className="h-3 w-3 rounded-full bg-current opacity-20" />}
                                                     </button>
-                                                    <div className="min-w-0 flex-1">
+                                                    <div className="min-w-0 flex-1 truncate">
                                                         <div className="flex flex-wrap items-center gap-2 mb-1">
                                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 ${cat.color} ${cat.bg}`}>{cat.icon} {cat.label}</span>
                                                             <span className={`text-[10px] font-mono ${xpColor}`}>+{task.xp} {xpType}</span>
@@ -463,7 +442,7 @@
                                                         <h3 className={`font-medium truncate text-sm ${task.completed ? 'line-through text-slate-500' : 'text-white'}`}>{task.title}</h3>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 text-slate-500 hover:text-red-400 ml-2"><Trash2 size={18} /></button>
+                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 text-slate-500 hover:text-red-400 ml-1 shrink-0"><Trash2 size={18} /></button>
                                             </div>
                                         );
                                     })}
@@ -471,7 +450,7 @@
                             </div>
                         )}
 
-                        {/* Other Tabs same pattern... */}
+                        {/* Rewards Tab */}
                         {activeTab === 'rewards' && (
                             <div className="space-y-6 animate-slide-in w-full">
                                 <Card className="p-4 bg-slate-900/50">
@@ -487,7 +466,7 @@
                                         </div>
                                     </div>
                                 </Card>
-                                <div className="grid grid-cols-1 gap-3 pb-12">
+                                <div className="grid grid-cols-1 gap-3">
                                     {rewards.sort((a,b) => a.levelReq - b.levelReq).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         return (
@@ -499,7 +478,7 @@
                                                         <p className={`text-xs ${isUnlocked ? 'text-green-400' : 'text-red-400'}`}>{isUnlocked ? '已解鎖' : `需 ${reward.reqType === 'base' ? '基礎' : '職涯'} LV ${reward.levelReq}`}</p>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-600"><Trash2 size={16} /></button>
+                                                <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-600 hover:text-red-400"><Trash2 size={16} /></button>
                                             </div>
                                         );
                                     })}
@@ -508,10 +487,10 @@
                         )}
 
                          {activeTab === 'history' && (
-                             <div className="space-y-6 animate-slide-in w-full pb-12">
+                             <div className="space-y-6 animate-slide-in w-full">
                                 <div className="flex justify-between items-center">
                                     <h2 className="text-lg font-bold text-white">紀錄</h2>
-                                    <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400"><Trash2 size={12} /> 清除</button>
+                                    <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400 hover:text-red-400"><Trash2 size={12} /> 清除</button>
                                 </div>
                                 {history.length === 0 ? <div className="text-center text-slate-500 italic">無紀錄</div> : (
                                     <div className="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
@@ -526,7 +505,7 @@
                                                                 <div className={`w-2 h-2 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
                                                                 <span className="text-sm text-slate-200">{entry.title}</span>
                                                             </div>
-                                                            <span className="text-xs text-indigo-400">+{entry.xp}</span>
+                                                            <span className="text-xs text-indigo-400">+{entry.xp} XP</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -538,6 +517,30 @@
                         )}
                     </main>
 
+                    {/* Settings Modal */}
+                    <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="設定與資料">
+                        <div className="space-y-4 w-full">
+                            <div className="bg-slate-900 p-4 rounded-xl space-y-3">
+                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">資料備份</h4>
+                                <p className="text-xs text-slate-500">存檔至手機/電腦，或從檔案還原。</p>
+                                <div className="flex gap-2">
+                                    <button onClick={handleExportData} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 rounded-lg text-sm"><Save size={16} /> 匯出</button>
+                                    <label className="flex-1 flex items-center justify-center gap-2 bg-slate-700 text-white py-3 rounded-lg text-sm cursor-pointer">
+                                        <Upload size={16} /> 匯入
+                                        <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="bg-slate-900 p-4 rounded-xl space-y-3">
+                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">重置</h4>
+                                <div className="space-y-2">
+                                    <button onClick={handleManualReset} className="w-full flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-lg text-sm"><RefreshCw size={16} /> 重置每日任務</button>
+                                    <button onClick={handleClearHistory} className="w-full flex items-center justify-center gap-2 bg-red-900/20 border border-red-900/50 text-red-400 py-3 rounded-lg text-sm"><Trash2 size={16} /> 清除所有紀錄</button>
+                                </div>
+                            </div>
+                        </div>
+                    </Modal>
+
                     <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="升級！">
                         <div className="text-center space-y-4">
                             <div className="mx-auto h-20 w-20 rounded-full bg-rose-500 flex items-center justify-center animate-bounce text-white"><Heart size={40} /></div>
@@ -545,38 +548,7 @@
                             <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full">繼續</Button>
                         </div>
                     </Modal>
-
-                    {/* Settings Modal - 包含備份與危險操作 */}
-                    <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="設定與資料">
-                        <div className="space-y-4 w-full">
-                            <div className="bg-slate-900 p-4 rounded-xl space-y-3">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">資料備份</h4>
-                                <p className="text-xs text-slate-500">將進度存成檔案，換手機或清除快取時可還原。</p>
-                                <div className="flex gap-2">
-                                    <button onClick={handleExportData} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm">
-                                        <Save size={16} /> 匯出
-                                    </button>
-                                    <label className="flex-1 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-sm cursor-pointer">
-                                        <Upload size={16} /> 匯入
-                                        <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-900 p-4 rounded-xl space-y-3">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">危險操作</h4>
-                                <div className="space-y-2">
-                                    <button onClick={handleManualReset} className="w-full flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-sm">
-                                        <RefreshCw size={16} /> 重置每日任務
-                                    </button>
-                                    <button onClick={handleClearHistory} className="w-full flex items-center justify-center gap-2 bg-red-900/20 border border-red-900/50 hover:bg-red-900/30 text-red-400 py-2 rounded-lg text-sm">
-                                        <Trash2 size={16} /> 清除所有紀錄
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </Modal>
-                </>
+                </div>
             );
         }
 
