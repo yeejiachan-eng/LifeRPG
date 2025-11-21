@@ -2,40 +2,37 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 加入 viewport-fit=cover 以適應瀏海屏，並再次確保禁止縮放 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>LifeRPG - 人生 RPG</title>
     
-    <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    
-    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Google Fonts (Inter & Noto Sans TC) -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
         body {
             font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            background-color: #020617; /* slate-950 */
-            color: #f1f5f9; /* slate-100 */
+            background-color: #020617;
+            color: #f1f5f9;
             -webkit-tap-highlight-color: transparent;
-        }
-        
-        /* Custom Scrollbar hiding */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+            /* 關鍵修正：禁止橫向卷動 */
+            overflow-x: hidden;
+            width: 100vw;
+            position: relative;
         }
 
-        /* Animations */
+        /* 關鍵修正：防止 iPhone 輸入時自動放大導致位移 */
+        input, select, textarea {
+            font-size: 16px !important; 
+        }
+
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
         @keyframes bounce {
             0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8,0,1,1); }
             50% { transform: translateY(0); animation-timing-function: cubic-bezier(0,0,0.2,1); }
@@ -47,10 +44,15 @@
             to { transform: translate(-50%, 0); opacity: 1; }
         }
         .animate-slide-in { animation: slide-in 0.3s ease-out forwards; }
+
+        /* iPhone X+ 底部安全區域 */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root" class="overflow-x-hidden w-full"></div>
 
     <script type="text/babel" data-type="module">
         import * as LucideReact from "https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0";
@@ -61,10 +63,8 @@
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info 
         } = LucideReact;
 
-        // --- Components ---
-
         const Card = ({ children, className = "" }) => (
-            <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden ${className}`}>
+            <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden w-full ${className}`}>
                 {children}
             </div>
         );
@@ -82,7 +82,7 @@
                 <button 
                     onClick={onClick}
                     disabled={disabled}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     {children}
                 </button>
@@ -105,8 +105,8 @@
             if (!isOpen) return null;
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-                    <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+                    <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 bg-slate-800 z-10">
                             <h3 className="text-xl font-bold text-white">{title}</h3>
                             <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24} /></button>
                         </div>
@@ -120,49 +120,32 @@
 
         const Notification = ({ message, type, onClose }) => {
             if (!message) return null;
-            
-            const bgColors = {
-                success: "bg-emerald-600",
-                error: "bg-red-600",
-                info: "bg-indigo-600"
-            };
-
+            const bgColors = { success: "bg-emerald-600", error: "bg-red-600", info: "bg-indigo-600" };
             return (
-                <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in`}>
-                    <span>{message}</span>
-                    <button onClick={onClose} className="opacity-80 hover:opacity-100"><X size={16} /></button>
+                <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-max max-w-[90vw]`}>
+                    <span className="truncate">{message}</span>
+                    <button onClick={onClose} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={16} /></button>
                 </div>
             );
         };
-
-        // --- Main App Component ---
 
         function LifeRPG() {
             const [user, setUser] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-user-v2');
                 if (saved) return JSON.parse(saved);
-                return {
-                    base: { level: 1, xp: 0, maxXp: 100 },
-                    job: { level: 1, xp: 0, maxXp: 100 },
-                    totalTasksCompleted: 0
-                };
+                return { base: { level: 1, xp: 0, maxXp: 100 }, job: { level: 1, xp: 0, maxXp: 100 }, totalTasksCompleted: 0 };
             });
 
-            // Helper for week number
             function getWeekNumber(d) {
                 d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
                 d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
                 var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-                var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-                return weekNo;
+                return Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
             }
 
             const [appState, setAppState] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-app-state');
-                return saved ? JSON.parse(saved) : {
-                    lastVisitDate: new Date().toDateString(),
-                    lastVisitWeek: getWeekNumber(new Date())
-                };
+                return saved ? JSON.parse(saved) : { lastVisitDate: new Date().toDateString(), lastVisitWeek: getWeekNumber(new Date()) };
             });
 
             const [tasks, setTasks] = React.useState(() => {
@@ -195,7 +178,6 @@
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2 });
 
-            // --- Config ---
              const categories = {
                 fitness: { type: 'base', color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", icon: <Dumbbell size={18} />, label: "運動健康" },
                 chores: { type: 'base', color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", icon: <Home size={18} />, label: "居家雜務" },
@@ -209,7 +191,7 @@
                 setTimeout(() => setNotification(null), 3000);
             };
 
-            // --- Effects ---
+            // Effects & Logic (Same as before)
             React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); }, [user]);
             React.useEffect(() => { localStorage.setItem('liferpg-tasks', JSON.stringify(tasks)); }, [tasks]);
             React.useEffect(() => { localStorage.setItem('liferpg-rewards-v2', JSON.stringify(rewards)); }, [rewards]);
@@ -220,223 +202,103 @@
                 const today = new Date();
                 const todayString = today.toDateString();
                 const currentWeek = getWeekNumber(today);
-
                 let updatedTasks = [...tasks];
                 let tasksChanged = false;
-
                 if (appState.lastVisitDate !== todayString) {
                     updatedTasks = updatedTasks.map(t => {
-                        if (t.repeat === 'daily' && t.completed) {
-                            tasksChanged = true;
-                            return { ...t, completed: false };
-                        }
+                        if (t.repeat === 'daily' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
                         return t;
                     });
                 }
-
                 if (appState.lastVisitWeek !== currentWeek) {
                     updatedTasks = updatedTasks.map(t => {
-                        if (t.repeat === 'weekly' && t.completed) {
-                            tasksChanged = true;
-                            return { ...t, completed: false };
-                        }
+                        if (t.repeat === 'weekly' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
                         return t;
                     });
                 }
-
-                if (tasksChanged) {
-                    setTasks(updatedTasks);
-                    showNotification("每日/每週任務已重置！", "info");
-                }
-
-                setAppState({
-                    lastVisitDate: todayString,
-                    lastVisitWeek: currentWeek
-                });
+                if (tasksChanged) { setTasks(updatedTasks); showNotification("每日/每週任務已重置！", "info"); }
+                setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
             }, []);
-
-            // --- Logic ---
 
             const handleCompleteTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
                 if (task.completed) return;
-
-                setTasks(tasks.map(t => 
-                    t.id === taskId ? { ...t, completed: true } : t
-                ));
-
-                const historyEntry = {
-                    logId: Date.now(),
-                    title: task.title,
-                    category: task.category,
-                    xp: task.xp,
-                    completedAt: new Date().toISOString()
-                };
-                setHistory(prev => [historyEntry, ...prev]);
-
+                setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
+                setHistory(prev => [{ logId: Date.now(), title: task.title, category: task.category, xp: task.xp, completedAt: new Date().toISOString() }, ...prev]);
                 addXP(task.xp, task.category);
             };
 
             const addXP = (amount, categoryKey) => {
                 const category = categories[categoryKey] || categories.general;
                 const type = category.type;
-
                 setUser(prev => {
                     let currentStats = { ...prev[type] };
                     let newXP = currentStats.xp + amount;
                     let newLevel = currentStats.level;
                     let newMaxXp = currentStats.maxXp;
                     let leveledUp = false;
-
-                    while (newXP >= newMaxXp) {
-                        newXP -= newMaxXp;
-                        newLevel++;
-                        newMaxXp = Math.floor(newMaxXp * 1.2);
-                        leveledUp = true;
-                    }
-
-                    if (leveledUp) {
-                        setTimeout(() => setLevelUpData({ type, level: newLevel }), 100);
-                    }
-
-                    return {
-                        ...prev,
-                        [type]: {
-                            level: newLevel,
-                            xp: newXP,
-                            maxXp: newMaxXp
-                        },
-                        totalTasksCompleted: prev.totalTasksCompleted + 1
-                    };
+                    while (newXP >= newMaxXp) { newXP -= newMaxXp; newLevel++; newMaxXp = Math.floor(newMaxXp * 1.2); leveledUp = true; }
+                    if (leveledUp) { setTimeout(() => setLevelUpData({ type, level: newLevel }), 100); }
+                    return { ...prev, [type]: { level: newLevel, xp: newXP, maxXp: newMaxXp }, totalTasksCompleted: prev.totalTasksCompleted + 1 };
                 });
             };
 
             const handleManualReset = () => {
-                if(window.confirm("確定要強制重置所有任務為「未完成」嗎？")) {
-                    setTasks(tasks.map(t => ({ ...t, completed: false })));
-                    showNotification("所有任務已強制重置為未完成", "info");
-                }
+                if(window.confirm("確定要強制重置所有任務為「未完成」嗎？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("已重置", "info"); }
             };
-
-            const handleDeleteTask = (id) => {
-                setTasks(tasks.filter(t => t.id !== id));
-                showNotification("任務已刪除", "error");
-            };
-
+            const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("已刪除", "error"); };
             const handleAddTask = (e) => {
                 e.preventDefault();
                 if (!newTask.title.trim()) return;
-                
-                setTasks([...tasks, {
-                    id: Date.now(),
-                    title: newTask.title,
-                    category: newTask.category,
-                    xp: parseInt(newTask.xp),
-                    repeat: newTask.repeat,
-                    completed: false
-                }]);
+                setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), repeat: newTask.repeat, completed: false }]);
                 setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
-                showNotification("新任務已新增！", "success");
+                showNotification("新增成功", "success");
             };
-
             const handleAddReward = (e) => {
                 e.preventDefault();
                 if (!newReward.title.trim()) return;
-
-                setRewards([...rewards, {
-                    id: Date.now(),
-                    title: newReward.title,
-                    reqType: newReward.reqType,
-                    levelReq: parseInt(newReward.levelReq),
-                    unlocked: false
-                }]);
+                setRewards([...rewards, { id: Date.now(), title: newReward.title, reqType: newReward.reqType, levelReq: parseInt(newReward.levelReq), unlocked: false }]);
                 setNewReward(prev => ({ ...prev, title: '' }));
-                showNotification("新獎勵已新增！", "success");
+                showNotification("新增獎勵", "success");
             };
-
-            const handleDeleteReward = (id) => {
-                setRewards(rewards.filter(r => r.id !== id));
-            };
-
-            const handleClearHistory = () => {
-                if(window.confirm("確定要清除所有紀錄嗎？")) {
-                    setHistory([]);
-                    showNotification("歷史紀錄已清除", "info");
-                }
-            };
+            const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
+            const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); } };
 
             const handleImportStarterPack = () => {
-                if(!window.confirm("匯入新手包任務？")) return;
-                const starterPack = [
-                    { id: 1001, title: "遛狗", category: "fitness", xp: 30, completed: false, repeat: 'daily' },
-                    { id: 1002, title: "健身/運動", category: "fitness", xp: 50, completed: false, repeat: 'daily' },
-                    { id: 1003, title: "洗衣服", category: "chores", xp: 40, completed: false, repeat: 'weekly' },
-                    { id: 1004, title: "更換床單", category: "chores", xp: 40, completed: false, repeat: 'weekly' },
-                    { id: 1005, title: "吸地板", category: "chores", xp: 30, completed: false, repeat: 'weekly' },
-                    { id: 1006, title: "拖地", category: "chores", xp: 30, completed: false, repeat: 'weekly' },
-                    { id: 1007, title: "倒垃圾", category: "chores", xp: 10, completed: false, repeat: 'daily' },
-                    { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, completed: false, repeat: 'daily' },
-                    { id: 1009, title: "檢視每日開銷", category: "finance", xp: 20, completed: false, repeat: 'daily' },
-                    { id: 1010, title: "閱讀產業新聞", category: "knowledge", xp: 20, completed: false, repeat: 'daily' },
-                    { id: 1011, title: "刷牙用牙線", category: "fitness", xp: 10, completed: false, repeat: 'daily' },
-                    { id: 1012, title: "冥想 (10分鐘)", category: "fitness", xp: 15, completed: false, repeat: 'daily' },
-                    { id: 1013, title: "打電話給家人/朋友", category: "general", xp: 25, completed: false, repeat: 'weekly' },
+                if(!window.confirm("匯入新手包？")) return;
+                const pack = [
+                    { id: 1001, title: "遛狗", category: "fitness", xp: 30, repeat: 'daily' }, { id: 1002, title: "運動", category: "fitness", xp: 50, repeat: 'daily' },
+                    { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, repeat: 'daily' }
                 ];
-
-                const uniqueNewTasks = starterPack.filter(newItem => 
-                    !tasks.some(existing => existing.title.trim() === newItem.title.trim())
-                );
-
-                if (uniqueNewTasks.length === 0) {
-                    showNotification("你已經擁有這些新手任務了！", "info");
-                    return;
-                }
-
-                setTasks(prev => [...prev, ...uniqueNewTasks.map(t => ({...t, id: Date.now() + Math.random()}))]);
-                showNotification(`成功匯入 ${uniqueNewTasks.length} 個新手任務！`, "success");
+                mergePack(pack, "新手包");
             };
 
             const handleImportEngineerPack = () => {
-                if(!window.confirm("匯入環工與理財任務？")) return;
-                const engineerPack = [
-                    { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, completed: false, repeat: 'none' },
-                    { id: 2002, title: "取得甲級證照 (空/水/廢)", category: "knowledge", xp: 50, completed: false, repeat: 'none' },
-                    { id: 2003, title: "精通 QGIS/ArcGIS 自動化", category: "knowledge", xp: 50, completed: false, repeat: 'none' },
-                    { id: 2004, title: "番茄鐘寫環評 (4x25分鐘)", category: "knowledge", xp: 20, completed: false, repeat: 'daily' },
-                    { id: 2005, title: "查詢環保署法規更新", category: "knowledge", xp: 10, completed: false, repeat: 'daily' },
-                    { id: 2006, title: "零支出挑戰 (No-Spend)", category: "finance", xp: 30, completed: false, repeat: 'daily' },
-                    { id: 2007, title: "學習新工具 (AERMOD/噪音)", category: "knowledge", xp: 40, completed: false, repeat: 'weekly' },
-                    { id: 2008, title: "轉帳預售屋工程款", category: "finance", xp: 50, completed: false, repeat: 'weekly' },
-                    { id: 2009, title: "伴侶理財會議", category: "finance", xp: 30, completed: false, repeat: 'weekly' },
-                    { id: 2010, title: "閱讀一篇高股息 ETF 文章", category: "finance", xp: 20, completed: false, repeat: 'none' },
+                if(!window.confirm("匯入環工/理財包？")) return;
+                const pack = [
+                    { id: 2001, title: "考取環工技師 (PE)", category: "knowledge", xp: 100, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, repeat: 'daily' },
+                    { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, repeat: 'weekly' }
                 ];
-
-                const uniqueNewTasks = engineerPack.filter(newItem => 
-                    !tasks.some(existing => existing.title.trim() === newItem.title.trim())
-                );
-
-                if (uniqueNewTasks.length === 0) {
-                    showNotification("你已經擁有這些工程師任務了！", "info");
-                    return;
-                }
-
-                setTasks(prev => [...prev, ...uniqueNewTasks.map(t => ({...t, id: Date.now() + Math.random()}))]);
-                showNotification(`成功匯入 ${uniqueNewTasks.length} 個環工/理財任務！`, "success");
+                mergePack(pack, "環工包");
             };
+
+            const mergePack = (pack, name) => {
+                const newT = pack.filter(n => !tasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
+                if (newT.length === 0) { showNotification("你已有這些任務", "info"); return; }
+                setTasks(p => [...p, ...newT]);
+                showNotification(`已匯入 ${name}`, "success");
+            }
 
             const getHistoryByDate = () => {
                 const groups = {};
                 history.forEach(entry => {
-                    const date = new Date(entry.completedAt).toLocaleDateString('zh-TW', {
-                        year: 'numeric', month: 'short', day: 'numeric', weekday: 'short'
-                    });
+                    const date = new Date(entry.completedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', weekday: 'short' });
                     if (!groups[date]) groups[date] = [];
                     groups[date].push(entry);
                 });
                 return groups;
             };
 
-            // --- UI Render ---
             const filteredTasks = tasks.filter(task => {
                 if (questFilter === 'all') return true;
                 const cat = categories[task.category] || categories.general;
@@ -444,122 +306,97 @@
             });
 
             return (
-                <div className="min-h-screen">
-                    {notification && (
-                        <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />
-                    )}
+                <div className="min-h-screen w-full overflow-x-hidden pb-safe">
+                    {notification && <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
 
-                    {/* Header */}
-                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl">
+                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full">
                         <div className="max-w-3xl mx-auto p-4 space-y-4">
                             <div className="flex items-center justify-between">
-                                <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                                    人生 RPG
-                                </h1>
-                                <div className="text-xs text-slate-500 font-mono">
-                                    已完成 {user.totalTasksCompleted} 個任務
-                                </div>
-                            </div>
-
-                            {/* Levels */}
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
-                                    <span className="flex items-center gap-1 text-rose-400"><Heart size={12} /> 基礎等級 (生活) LV {user.base.level}</span>
-                                    <span className="text-slate-500">{user.base.xp} / {user.base.maxXp} XP</span>
-                                </div>
-                                <ProgressBar current={user.base.xp} max={user.base.maxXp} colorClass="bg-gradient-to-r from-rose-500 to-pink-500" height="h-3" />
+                                <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">人生 RPG</h1>
+                                <div className="text-xs text-slate-500 font-mono">完成 {user.totalTasksCompleted} 任務</div>
                             </div>
                             <div className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
-                                    <span className="flex items-center gap-1 text-cyan-400"><Briefcase size={12} /> 職涯等級 (工作) LV {user.job.level}</span>
-                                    <span className="text-slate-500">{user.job.xp} / {user.job.maxXp} XP</span>
-                                </div>
-                                <ProgressBar current={user.job.xp} max={user.job.maxXp} colorClass="bg-gradient-to-r from-cyan-500 to-blue-500" height="h-3" />
+                                <div className="flex justify-between text-xs font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-rose-400"><Heart size={12} /> 生活 LV {user.base.level}</span><span className="text-slate-500">{user.base.xp}/{user.base.maxXp}</span></div>
+                                <ProgressBar current={user.base.xp} max={user.base.maxXp} colorClass="bg-gradient-to-r from-rose-500 to-pink-500" height="h-2" />
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-xs font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-cyan-400"><Briefcase size={12} /> 職涯 LV {user.job.level}</span><span className="text-slate-500">{user.job.xp}/{user.job.maxXp}</span></div>
+                                <ProgressBar current={user.job.xp} max={user.job.maxXp} colorClass="bg-gradient-to-r from-cyan-500 to-blue-500" height="h-2" />
                             </div>
                         </div>
                     </div>
 
-                    <main className="max-w-3xl mx-auto p-4 pb-24">
-                        
-                        {/* Tabs */}
-                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-                            <button onClick={() => setActiveTab('tasks')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'tasks' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                <CheckCircle2 size={20} /> 任務列表
-                            </button>
-                            <button onClick={() => setActiveTab('rewards')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'rewards' ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                <Trophy size={20} /> 獎勵兌換
-                            </button>
-                            <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'history' ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                <Calendar size={20} /> 歷史紀錄
-                            </button>
+                    <main className="max-w-3xl mx-auto p-4 pb-24 w-full">
+                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
+                            <button onClick={() => setActiveTab('tasks')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'tasks' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}><CheckCircle2 size={20} /> 任務</button>
+                            <button onClick={() => setActiveTab('rewards')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'rewards' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Trophy size={20} /> 獎勵</button>
+                            <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Calendar size={20} /> 紀錄</button>
                         </div>
 
-                        {/* --- TASKS TAB --- */}
                         {activeTab === 'tasks' && (
-                            <div className="space-y-6 animate-slide-in">
-                                <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex">
-                                    <button onClick={() => setQuestFilter('all')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${questFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
-                                    <button onClick={() => setQuestFilter('base')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${questFilter === 'base' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white'}`}><Heart size={14} /> 基礎</button>
-                                    <button onClick={() => setQuestFilter('job')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${questFilter === 'job' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}><Briefcase size={14} /> 職涯</button>
+                            <div className="space-y-6 animate-slide-in w-full">
+                                <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex w-full">
+                                    <button onClick={() => setQuestFilter('all')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>全部</button>
+                                    <button onClick={() => setQuestFilter('base')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'base' ? 'bg-rose-600 text-white' : 'text-slate-400'}`}>基礎</button>
+                                    <button onClick={() => setQuestFilter('job')} className={`flex-1 py-2 text-sm font-medium rounded-lg ${questFilter === 'job' ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}>職涯</button>
                                 </div>
 
                                 <Card className="p-4 bg-slate-900/50">
-                                    <form onSubmit={handleAddTask} className="flex flex-col gap-3">
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                            <input type="text" placeholder="輸入任務名稱..." className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500 text-white" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
-                                            <select className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-300 focus:outline-none" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
-                                                {Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                            <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-300 focus:outline-none" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
-                                                <option value="daily">每日重複</option>
-                                                <option value="weekly">每週重複</option>
-                                                <option value="none">一次性</option>
-                                            </select>
-                                            <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-300 focus:outline-none" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
-                                                <option value="10">10 XP (簡單)</option>
-                                                <option value="20">20 XP (普通)</option>
-                                                <option value="30">30 XP (困難)</option>
-                                                <option value="50">50 XP (史詩)</option>
-                                            </select>
-                                            <Button variant="primary"><Plus size={20} /> 新增</Button>
+                                    <form onSubmit={handleAddTask} className="flex flex-col gap-3 w-full">
+                                        <div className="flex flex-col gap-3">
+                                            <input type="text" placeholder="任務名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-indigo-500" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
+                                            <div className="flex gap-2">
+                                                <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
+                                                    {Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
+                                                </select>
+                                                <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
+                                                    <option value="daily">每日</option>
+                                                    <option value="weekly">每週</option>
+                                                    <option value="none">一次</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                 <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
+                                                    <option value="10">10 XP</option>
+                                                    <option value="20">20 XP</option>
+                                                    <option value="30">30 XP</option>
+                                                    <option value="50">50 XP</option>
+                                                </select>
+                                                <Button variant="primary" className="flex-1"><Plus size={20} /> 新增</Button>
+                                            </div>
                                         </div>
                                     </form>
                                 </Card>
 
                                 <div className="flex justify-between items-center flex-wrap gap-2">
-                                    <h2 className="text-xl font-bold text-white">進行中 ({filteredTasks.length})</h2>
+                                    <h2 className="text-lg font-bold text-white">進行中 ({filteredTasks.length})</h2>
                                     <div className="flex gap-2">
-                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 hover:text-white bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20"><HardHat size={12} /> 匯入環工包</button>
-                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 hover:text-white"><Download size={12} /> 匯入新手包</button>
-                                        <button onClick={handleManualReset} className="text-xs flex items-center gap-1 text-slate-400 hover:text-white"><RefreshCw size={12} /> 強制重置</button>
+                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 border border-cyan-500/20 rounded px-2 py-1"><HardHat size={12} /> 環工包</button>
+                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 border border-indigo-500/20 rounded px-2 py-1"><Download size={12} /> 新手包</button>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
-                                    {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic">此分類暫無任務。</div>}
+                                    {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic">暫無任務</div>}
                                     {filteredTasks.sort((a,b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1).map((task) => {
                                         const cat = categories[task.category] || categories.general;
                                         const xpType = cat.type === 'base' ? '基礎' : '職涯';
                                         const xpColor = cat.type === 'base' ? 'text-rose-400' : 'text-cyan-400';
-                                        
                                         return (
-                                            <div key={task.id} className={`relative group flex items-center justify-between p-4 rounded-xl border transition-all duration-300 ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
-                                                <div className="flex items-center gap-4 overflow-hidden">
-                                                    <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-12 w-12 rounded-full flex items-center justify-center border-2 transition-all ${task.completed ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
-                                                        {task.completed ? <CheckCircle2 size={24} /> : <div className="h-4 w-4 rounded-full bg-current opacity-20" />}
+                                            <div key={task.id} className={`relative group flex items-center justify-between p-4 rounded-xl border w-full ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
+                                                <div className="flex items-center gap-4 overflow-hidden flex-1">
+                                                    <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-10 w-10 rounded-full flex items-center justify-center border-2 ${task.completed ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
+                                                        {task.completed ? <CheckCircle2 size={20} /> : <div className="h-3 w-3 rounded-full bg-current opacity-20" />}
                                                     </button>
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 flex-1">
                                                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${cat.color} ${cat.bg}`}>{cat.icon} {cat.label}</span>
-                                                            <span className={`text-xs font-mono ${xpColor}`}>+{task.xp} {xpType} XP</span>
-                                                            {task.repeat && task.repeat !== 'none' && <span className="text-xs text-slate-500 flex items-center gap-1"><Repeat size={10} /> {task.repeat === 'daily' ? '每日' : '每週'}</span>}
+                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 ${cat.color} ${cat.bg}`}>{cat.icon} {cat.label}</span>
+                                                            <span className={`text-[10px] font-mono ${xpColor}`}>+{task.xp} {xpType}</span>
                                                         </div>
-                                                        <h3 className={`font-medium truncate ${task.completed ? 'line-through text-slate-500' : 'text-white'}`}>{task.title}</h3>
+                                                        <h3 className={`font-medium truncate text-sm ${task.completed ? 'line-through text-slate-500' : 'text-white'}`}>{task.title}</h3>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteTask(task.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-slate-500 hover:text-red-400"><Trash2 size={18} /></button>
+                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 text-slate-500 hover:text-red-400 ml-2"><Trash2 size={18} /></button>
                                             </div>
                                         );
                                     })}
@@ -567,38 +404,34 @@
                             </div>
                         )}
 
-                        {/* --- REWARDS TAB --- */}
                         {activeTab === 'rewards' && (
-                            <div className="space-y-6 animate-slide-in">
+                            <div className="space-y-6 animate-slide-in w-full">
                                 <Card className="p-4 bg-slate-900/50">
-                                    <div className="flex flex-col gap-3">
-                                        <input type="text" placeholder="輸入獎勵名稱..." className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 focus:outline-none focus:border-amber-500 text-white" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
-                                        <div className="flex gap-3">
-                                            <select className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-300 focus:outline-none" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
-                                                <option value="base">基礎等級</option>
-                                                <option value="job">職涯等級</option>
+                                    <div className="flex flex-col gap-3 w-full">
+                                        <input type="text" placeholder="獎勵名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
+                                        <div className="flex gap-2">
+                                            <select className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-slate-300" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
+                                                <option value="base">基礎</option>
+                                                <option value="job">職涯</option>
                                             </select>
-                                            <input type="number" min="1" className="bg-slate-800 border border-slate-600 rounded-lg px-3 w-20 text-white focus:outline-none" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
-                                            <Button variant="primary" onClick={handleAddReward}><Plus size={20} /></Button>
+                                            <input type="number" placeholder="等級" className="w-20 bg-slate-800 border border-slate-600 rounded-lg px-2 py-3 text-white" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
+                                            <Button variant="primary"><Plus size={20} /></Button>
                                         </div>
                                     </div>
                                 </Card>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-3">
                                     {rewards.sort((a,b) => a.levelReq - b.levelReq).map((reward) => {
-                                        const reqTypeLabel = reward.reqType === 'base' ? '基礎' : '職涯';
-                                        const userLevel = reward.reqType === 'base' ? user.base.level : user.job.level;
-                                        const isUnlocked = userLevel >= reward.levelReq;
+                                        const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         return (
-                                            <div key={reward.id} className={`relative p-5 rounded-xl border flex flex-col gap-3 ${isUnlocked ? 'bg-gradient-to-br from-amber-900/20 to-slate-800 border-amber-500/30' : 'bg-slate-800 border-slate-700 opacity-75'}`}>
-                                                <div className="flex justify-between items-start">
-                                                    <div className={`p-3 rounded-lg ${isUnlocked ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-500'}`}>{isUnlocked ? <Unlock size={24} /> : <Lock size={24} />}</div>
-                                                    <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-600 hover:text-red-400"><Trash2 size={16} /></button>
+                                            <div key={reward.id} className={`relative p-4 rounded-xl border flex items-center justify-between ${isUnlocked ? 'bg-gradient-to-br from-amber-900/20 to-slate-800 border-amber-500/30' : 'bg-slate-800 border-slate-700 opacity-75'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-lg ${isUnlocked ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-500'}`}>{isUnlocked ? <Unlock size={20} /> : <Lock size={20} />}</div>
+                                                    <div>
+                                                        <h3 className={`font-bold text-sm ${isUnlocked ? 'text-white' : 'text-slate-400'}`}>{reward.title}</h3>
+                                                        <p className={`text-xs ${isUnlocked ? 'text-green-400' : 'text-red-400'}`}>{isUnlocked ? '已解鎖' : `需 ${reward.reqType === 'base' ? '基礎' : '職涯'} LV ${reward.levelReq}`}</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h3 className={`font-bold text-lg ${isUnlocked ? 'text-white' : 'text-slate-400'}`}>{reward.title}</h3>
-                                                    <p className={`text-sm mt-1 font-mono ${isUnlocked ? 'text-green-400' : 'text-red-400'}`}>{isUnlocked ? '已解鎖' : `需要 ${reqTypeLabel}等級 ${reward.levelReq}`}</p>
-                                                </div>
-                                                {!isUnlocked && <ProgressBar current={userLevel} max={reward.levelReq} colorClass="bg-slate-500" />}
+                                                <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-600"><Trash2 size={16} /></button>
                                             </div>
                                         );
                                     })}
@@ -606,37 +439,28 @@
                             </div>
                         )}
 
-                        {/* --- HISTORY TAB --- */}
                         {activeTab === 'history' && (
-                            <div className="space-y-6 animate-slide-in">
+                             <div className="space-y-6 animate-slide-in w-full">
                                 <div className="flex justify-between items-center">
-                                    <h2 className="text-xl font-bold text-white">任務時間軸</h2>
-                                    <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400 hover:text-red-400"><Trash2 size={12} /> 清除紀錄</button>
+                                    <h2 className="text-lg font-bold text-white">紀錄</h2>
+                                    <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400"><Trash2 size={12} /> 清除</button>
                                 </div>
-                                {history.length === 0 ? (
-                                    <div className="text-center py-12 text-slate-500 italic border border-dashed border-slate-800 rounded-xl">尚未有紀錄。</div>
-                                ) : (
-                                    <div className="space-y-8 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+                                {history.length === 0 ? <div className="text-center text-slate-500 italic">無紀錄</div> : (
+                                    <div className="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
-                                            <div key={date} className="relative pl-10">
-                                                <div className="absolute left-2 top-0 w-4 h-4 bg-slate-700 rounded-full border-4 border-slate-950 transform -translate-x-1/2 z-10"></div>
-                                                <div className="mb-4"><span className="text-sm font-bold text-slate-400 uppercase bg-slate-900/80 px-2 py-1 rounded">{date}</span></div>
-                                                <div className="space-y-3">
-                                                    {entries.sort((a,b) => new Date(b.completedAt) - new Date(a.completedAt)).map(entry => {
-                                                        const cat = categories[entry.category] || categories.general;
-                                                        return (
-                                                            <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-3 rounded-lg flex items-center justify-between shadow-sm">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className={`p-2 rounded-full ${cat.bg} ${cat.color}`}>{cat.icon}</div>
-                                                                    <div>
-                                                                        <div className="text-slate-200 font-medium">{entry.title}</div>
-                                                                        <div className="text-xs text-slate-500">{new Date(entry.completedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="font-mono text-xs text-indigo-400">+{entry.xp} XP</div>
+                                            <div key={date} className="relative pl-8">
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="mb-2"><span className="text-xs font-bold text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded">{date}</span></div>
+                                                <div className="space-y-2">
+                                                    {entries.map(entry => (
+                                                        <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className={`w-2 h-2 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
+                                                                <span className="text-sm text-slate-200">{entry.title}</span>
                                                             </div>
-                                                        );
-                                                    })}
+                                                            <span className="text-xs text-indigo-400">+{entry.xp}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         ))}
@@ -644,20 +468,12 @@
                                 )}
                             </div>
                         )}
-
                     </main>
-
-                    {/* Level Up Modal */}
-                    <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title={`${levelUpData?.type === 'base' ? '基礎' : '職涯'}等級升級！`}>
-                        <div className="text-center space-y-6">
-                            <div className={`mx-auto h-24 w-24 rounded-full flex items-center justify-center animate-bounce ${levelUpData?.type === 'base' ? 'bg-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.5)]' : 'bg-cyan-500 shadow-[0_0_30px_rgba(6,182,212,0.5)]'}`}>
-                                {levelUpData?.type === 'base' ? <Heart size={48} className="text-white" /> : <Briefcase size={48} className="text-white" />}
-                            </div>
-                            <div>
-                                <h2 className="text-4xl font-black text-white mb-2">{levelUpData?.level}</h2>
-                                <p className="text-slate-300">恭喜！你達到了新的等級！</p>
-                            </div>
-                            <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full py-3 text-lg">繼續旅程</Button>
+                    <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="升級！">
+                        <div className="text-center space-y-4">
+                            <div className="mx-auto h-20 w-20 rounded-full bg-rose-500 flex items-center justify-center animate-bounce text-white"><Heart size={40} /></div>
+                            <h2 className="text-3xl font-black text-white">LV {levelUpData?.level}</h2>
+                            <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full">繼續</Button>
                         </div>
                     </Modal>
                 </div>
