@@ -239,13 +239,11 @@
 
         // --- 主程式 ---
         function LifeRPG() {
-            // State Initialization with Safe Defaults
             const [user, setUser] = React.useState(() => {
                 try {
                     const saved = localStorage.getItem('liferpg-user-v2');
                     if (saved) {
                         const parsed = JSON.parse(saved);
-                        // Data Migration: Ensure new fields exist
                         return { 
                             ...parsed, 
                             name: parsed.name || "Player",
@@ -345,7 +343,7 @@
             React.useEffect(() => { localStorage.setItem('liferpg-history', JSON.stringify(history)); }, [history]);
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
 
-            // Daily Reset Logic
+            // Daily Reset Logic (包含 Stamina 回復)
             React.useEffect(() => {
                 const today = new Date();
                 const todayString = today.toDateString();
@@ -360,17 +358,17 @@
                         return t;
                     });
 
-                    // *** Stamina Daily Regen: 每天 +10 ***
+                    // *** Stamina Daily Regen: 每天 +34 (約3天集滿 36歲養生模式) ***
                     setUser(prev => ({
                         ...prev,
                         stamina: {
                             ...prev.stamina,
                             // Ensure safety
                             max: prev.stamina?.max || 100,
-                            current: Math.min((prev.stamina?.max || 100), (prev.stamina?.current || 0) + 10)
+                            current: Math.min((prev.stamina?.max || 100), (prev.stamina?.current || 0) + 34)
                         }
                     }));
-                    showNotification("新的一天！精力恢復 +10", "info");
+                    showNotification("新的一天！精力恢復 +34 (約3天冷卻)", "info");
                 }
                 
                 if (appState.lastVisitWeek !== currentWeek) {
@@ -427,6 +425,7 @@
                 }
             };
 
+            // 兌換獎勵 (支援 Zeny 和 Stamina)
             const handleRedeemReward = (reward) => {
                 const cost = reward.cost || 0;
                 const currency = reward.currency || 'zeny';
@@ -471,6 +470,7 @@
                 showNotification(`轉職成功！${newJobTitle}`, "gold");
             };
 
+            // 統一的狀態更新函式
             const updateUserStatus = (xpAmount, categoryKey, moneyAmount) => {
                 const category = categories[categoryKey] || categories.general;
                 const type = category.type;
@@ -557,7 +557,7 @@
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
 
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, version: "2.3" };
+                const data = { user, tasks, rewards, history, appState, version: "2.4" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -589,6 +589,8 @@
                 };
                 reader.readAsText(file);
             };
+
+            // --- 匯入包邏輯 ---
 
             const handleImportStarterPack = () => {
                 mergePack([
@@ -626,7 +628,7 @@
 
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
-                const newT = pack.filter(n => !currentTasks.some(e => e.title && e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
+                const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
                 
                 if (newT.length === 0) { 
                     showNotification("任務已存在", "info"); 
@@ -978,7 +980,7 @@
                             </div>
                             <div>
                                 <h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2>
-                                <p className="text-sm text-slate-600 mt-1">Congratulations!</p>
+                                <p className="text-sm text-slate-300 mt-1">Congratulations!</p>
                             </div>
                             <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button>
                         </div>
