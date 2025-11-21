@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Stamina System</title>
+    <title>LifeRPG - Ultimate</title>
     
-    <script src="[https://unpkg.com/react@18/umd/react.development.js](https://unpkg.com/react@18/umd/react.development.js)" crossorigin></script>
-    <script src="[https://unpkg.com/react-dom@18/umd/react-dom.development.js](https://unpkg.com/react-dom@18/umd/react-dom.development.js)" crossorigin></script>
-    <script src="[https://unpkg.com/@babel/standalone/babel.min.js](https://unpkg.com/@babel/standalone/babel.min.js)"></script>
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- 引入像素字體 -->
-    <link href="[https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap](https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap)" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
 
     <style>
         /* --- 全局設定 --- */
@@ -137,12 +137,12 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import * as LucideReact from "[https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0](https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0)";
+        import * as LucideReact from "https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0";
 
         const { 
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
-            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery
+            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag
         } = LucideReact;
 
         // --- UI 元件 ---
@@ -239,17 +239,23 @@
 
         // --- 主程式 ---
         function LifeRPG() {
+            // State Initialization with Safe Defaults
             const [user, setUser] = React.useState(() => {
-                const saved = localStorage.getItem('liferpg-user-v2');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    return { 
-                        ...parsed, 
-                        name: parsed.name || "Player",
-                        jobTitle: parsed.jobTitle || "工程師",
-                        zeny: parsed.zeny || 0,
-                        stamina: parsed.stamina || { current: 100, max: 100 } // 新增精力系統
-                    };
+                try {
+                    const saved = localStorage.getItem('liferpg-user-v2');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        // Data Migration: Ensure new fields exist
+                        return { 
+                            ...parsed, 
+                            name: parsed.name || "Player",
+                            jobTitle: parsed.jobTitle || "工程師",
+                            zeny: parsed.zeny || 0,
+                            stamina: parsed.stamina || { current: 100, max: 100 } 
+                        };
+                    }
+                } catch (e) {
+                    console.error("Load Error", e);
                 }
                 return { 
                     name: "Player",
@@ -257,7 +263,7 @@
                     zeny: 0,
                     base: { level: 1, xp: 0, maxXp: 100 }, 
                     job: { level: 1, xp: 0, maxXp: 100 }, 
-                    stamina: { current: 100, max: 100 }, // 初始滿精力
+                    stamina: { current: 100, max: 100 }, 
                     totalTasksCompleted: 0 
                 };
             });
@@ -339,7 +345,7 @@
             React.useEffect(() => { localStorage.setItem('liferpg-history', JSON.stringify(history)); }, [history]);
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
 
-            // Daily Reset Logic (包含 Stamina 回復)
+            // Daily Reset Logic
             React.useEffect(() => {
                 const today = new Date();
                 const todayString = today.toDateString();
@@ -354,17 +360,17 @@
                         return t;
                     });
 
-                    // *** Stamina Daily Regen: 每天 +34 (約3天集滿) ***
+                    // *** Stamina Daily Regen: 每天 +10 ***
                     setUser(prev => ({
                         ...prev,
                         stamina: {
                             ...prev.stamina,
-                            // 確保 stamina 物件存在
+                            // Ensure safety
                             max: prev.stamina?.max || 100,
-                            current: Math.min((prev.stamina?.max || 100), (prev.stamina?.current || 0) + 34)
+                            current: Math.min((prev.stamina?.max || 100), (prev.stamina?.current || 0) + 10)
                         }
                     }));
-                    showNotification("新的一天！精力恢復 +34 (約3天冷卻)", "info");
+                    showNotification("新的一天！精力恢復 +10", "info");
                 }
                 
                 if (appState.lastVisitWeek !== currentWeek) {
@@ -421,44 +427,29 @@
                 }
             };
 
-            // 兌換獎勵 (支援 Zeny 和 Stamina)
             const handleRedeemReward = (reward) => {
                 const cost = reward.cost || 0;
                 const currency = reward.currency || 'zeny';
 
                 if (currency === 'zeny') {
                     if (user.zeny < cost) {
-                        showNotification("Zeny 不足！請多接點任務！", "error");
+                        showNotification("Zeny 不足！", "error");
                         return;
                     }
                     updateUserStatus(0, "general", -cost);
                     showNotification(`已兌換 ${reward.title} (-$${cost} Z)`, "gold");
                 } 
                 else if (currency === 'stamina') {
-                    // Stamina Logic
                     if ((user.stamina?.current || 0) < cost) {
-                        if(window.confirm(`精力不足 (${Math.floor(user.stamina?.current || 0)}/${cost})！要強制透支嗎？\n(警告：將扣除 $5000 Zeny 作為懲罰)`)) {
-                            // 強制透支邏輯
-                            if (user.zeny < 5000) {
-                                showNotification("Zeny 不足支付懲罰金，無法透支！", "error");
-                                return;
-                            }
-                            setUser(prev => ({
-                                ...prev,
-                                zeny: prev.zeny - 5000,
-                                stamina: { ...prev.stamina, current: 0 } // 精力歸零
-                            }));
-                            showNotification("強制釋放... 精力歸零, 扣除 $5000 Zeny", "error");
-                        } else {
-                            return;
-                        }
+                        // No prompt, just block
+                        showNotification("精力不足！休息一下吧", "error");
+                        return;
                     } else {
-                        // 正常扣除
                         setUser(prev => ({
                             ...prev,
                             stamina: { ...prev.stamina, current: prev.stamina.current - cost }
                         }));
-                        showNotification(`聖人模式啟動 (-${cost} STA)`, "success");
+                        showNotification(`聖人模式 (-${cost} STA)`, "success");
                     }
                 }
                 
@@ -477,10 +468,9 @@
                 if (!newJobTitle.trim()) return;
                 setUser(prev => ({ ...prev, jobTitle: newJobTitle }));
                 setJobChangeData(null);
-                showNotification(`轉職成功！職業變更為：${newJobTitle}`, "gold");
+                showNotification(`轉職成功！${newJobTitle}`, "gold");
             };
 
-            // 統一的狀態更新函式
             const updateUserStatus = (xpAmount, categoryKey, moneyAmount) => {
                 const category = categories[categoryKey] || categories.general;
                 const type = category.type;
@@ -535,7 +525,6 @@
             const handleAddTask = (e) => {
                 e.preventDefault();
                 if (!newTask.title.trim()) return;
-                // Hardcore Mode Money = XP * 2
                 const moneyVal = parseInt(newTask.xp) * 2;
                 setTasks([...tasks, { 
                     id: Date.now(), 
@@ -587,12 +576,7 @@
                 reader.onload = (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        if(data.user) setUser({...data.user, 
-                            name: data.user.name || "Player", 
-                            jobTitle: data.user.jobTitle || "工程師", 
-                            zeny: data.user.zeny || 0,
-                            stamina: data.user.stamina || { current: 100, max: 100 }
-                        });
+                        if(data.user) setUser({...data.user, name: data.user.name || "Player", jobTitle: data.user.jobTitle || "工程師", zeny: data.user.zeny || 0, stamina: data.user.stamina || {current:100, max:100}});
                         if(data.tasks) setTasks(data.tasks);
                         if(data.rewards) setRewards(data.rewards);
                         if(data.history) setHistory(data.history);
@@ -605,8 +589,6 @@
                 };
                 reader.readAsText(file);
             };
-
-            // --- 匯入包邏輯 ---
 
             const handleImportStarterPack = () => {
                 mergePack([
@@ -636,7 +618,7 @@
                     { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' },
                     { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' },
                     { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' },
-                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
+                    { id: 3011, title: "研讀環工英文/最新法規", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
                     { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
                     { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
                 ], "升級包");
@@ -644,17 +626,15 @@
 
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
-                const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
+                const newT = pack.filter(n => !currentTasks.some(e => e.title && e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
                 
                 if (newT.length === 0) { 
-                    showNotification("任務已存在，無需重複匯入", "info"); 
+                    showNotification("任務已存在", "info"); 
                     return; 
                 }
                 setTasks(p => [...p, ...newT]);
-                showNotification(`成功匯入 ${name} (${newT.length} 個新任務)`, "success");
+                showNotification(`已匯入 ${name}`, "success");
             }
-
-            // --- 獎勵匯入邏輯 (移除指定項目) ---
 
             const handleImportRewardPack = () => {
                 const rewardPack = [
@@ -928,16 +908,19 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
-                                                <div className="mb-2"><span className="text-xs font-bold text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded">{date}</span></div>
-                                                <div className="space-y-2">
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border border-slate-400 transform -translate-x-1/2 z-10"></div>
+                                                <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
+                                                <div className="space-y-1.5">
                                                     {entries.map(entry => (
-                                                        <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between shadow-sm">
-                                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                                <div className={`w-2 h-2 shrink-0 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
-                                                                <span className="text-sm text-slate-200 truncate">{entry.title}</span>
+                                                        <div key={entry.logId} className="bg-white/90 border border-slate-300 p-2 rounded flex items-center justify-between shadow-sm">
+                                                            <div className="flex flex-col overflow-hidden">
+                                                                <span className={`text-xs font-bold truncate ${entry.isReward ? 'text-purple-700' : 'text-slate-700'}`}>{entry.title}</span>
+                                                                <span className="text-[9px] text-slate-400">{new Date(entry.completedAt).toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'})}</span>
                                                             </div>
-                                                            <span className="text-xs text-indigo-400 shrink-0">+{entry.xp} XP</span>
+                                                            <div className="flex flex-col items-end shrink-0">
+                                                                {entry.xp !== 0 && <span className={`text-[10px] font-pixel ${entry.xp > 0 ? 'text-blue-600' : 'text-red-500'}`}>{entry.xp > 0 ? '+' : ''}{entry.xp} XP</span>}
+                                                                {entry.money !== 0 && <span className={`text-[10px] font-pixel ${entry.money > 0 ? 'text-yellow-600' : 'text-red-500'}`}>{entry.money > 0 ? '+' : ''}${entry.money} Z</span>}
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -991,11 +974,11 @@
                     <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="LEVEL UP!">
                         <div className="text-center space-y-4 py-4">
                             <div className="mx-auto h-20 w-20 rounded-full bg-yellow-100 flex items-center justify-center animate-bounce text-yellow-600 border-4 border-yellow-200">
-                                <img src="[https://api.iconify.design/mdi:wings.svg?color=goldenrod](https://api.iconify.design/mdi:wings.svg?color=goldenrod)" className="w-12 h-12" alt="wings" />
+                                <img src="https://api.iconify.design/mdi:wings.svg?color=goldenrod" className="w-12 h-12" alt="wings" />
                             </div>
                             <div>
                                 <h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2>
-                                <p className="text-sm text-slate-300 mt-1">Congratulations!</p>
+                                <p className="text-sm text-slate-600 mt-1">Congratulations!</p>
                             </div>
                             <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button>
                         </div>
