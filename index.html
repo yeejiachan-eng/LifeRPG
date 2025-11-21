@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 加入 viewport-fit=cover 以適應瀏海屏，並再次確保禁止縮放 -->
+    <!-- 關鍵修正：鎖定縮放，並加入 viewport-fit=cover 適應瀏海屏 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>LifeRPG - 人生 RPG</title>
     
@@ -14,22 +14,41 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
-        body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        /* --- App Shell 模式：終極防位移修正 --- */
+        
+        /* 1. 鎖死瀏覽器層級的捲動，防止 iOS 彈性拉動 (Elastic Scrolling) */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* 禁止 body 捲動 */
+            position: fixed; /* 固定頁面 */
             background-color: #020617;
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
             color: #f1f5f9;
             -webkit-tap-highlight-color: transparent;
-            /* 關鍵修正：禁止橫向卷動 */
-            overflow-x: hidden;
-            width: 100vw;
-            position: relative;
+            touch-action: manipulation;
         }
 
-        /* 關鍵修正：防止 iPhone 輸入時自動放大導致位移 */
+        /* 2. 建立一個內部捲動容器，所有內容都在這裡面動 */
+        #root {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto; /* 垂直捲動 */
+            overflow-x: hidden; /* 強制禁止水平捲動 */
+            -webkit-overflow-scrolling: touch; /* iOS 滑順捲動 */
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 3. 強制輸入框字體大小 16px，防止 iPhone 自動放大造成位移 */
         input, select, textarea {
             font-size: 16px !important; 
         }
 
+        /* 工具類 */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -45,14 +64,13 @@
         }
         .animate-slide-in { animation: slide-in 0.3s ease-out forwards; }
 
-        /* iPhone X+ 底部安全區域 */
-        .pb-safe {
-            padding-bottom: env(safe-area-inset-bottom);
-        }
+        /* iPhone 安全區域修正 */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
     </style>
 </head>
 <body>
-    <div id="root" class="overflow-x-hidden w-full"></div>
+    <div id="root"></div>
 
     <script type="text/babel" data-type="module">
         import * as LucideReact from "https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0";
@@ -63,6 +81,7 @@
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info 
         } = LucideReact;
 
+        // --- Components ---
         const Card = ({ children, className = "" }) => (
             <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden w-full ${className}`}>
                 {children}
@@ -77,13 +96,8 @@
                 success: "bg-emerald-600 hover:bg-emerald-500 text-white",
                 outline: "border border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white"
             };
-            
             return (
-                <button 
-                    onClick={onClick}
-                    disabled={disabled}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
+                <button onClick={onClick} disabled={disabled} className={`px-4 py-2 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     {children}
                 </button>
             );
@@ -93,10 +107,7 @@
             const percentage = Math.min(100, Math.max(0, (current / max) * 100));
             return (
                 <div className={`${height} w-full bg-slate-900 rounded-full overflow-hidden border border-slate-700`}>
-                    <div 
-                        className={`h-full transition-all duration-500 ease-out ${colorClass}`}
-                        style={{ width: `${percentage}%` }}
-                    />
+                    <div className={`h-full transition-all duration-500 ease-out ${colorClass}`} style={{ width: `${percentage}%` }} />
                 </div>
             );
         };
@@ -105,14 +116,12 @@
             if (!isOpen) return null;
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-                    <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+                    <div className="bg-slate-800 border border-slate-600 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100 max-h-[80vh] overflow-y-auto">
                         <div className="p-4 border-b border-slate-700 flex justify-between items-center sticky top-0 bg-slate-800 z-10">
                             <h3 className="text-xl font-bold text-white">{title}</h3>
                             <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24} /></button>
                         </div>
-                        <div className="p-6">
-                            {children}
-                        </div>
+                        <div className="p-6">{children}</div>
                     </div>
                 </div>
             );
@@ -122,13 +131,14 @@
             if (!message) return null;
             const bgColors = { success: "bg-emerald-600", error: "bg-red-600", info: "bg-indigo-600" };
             return (
-                <div className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-max max-w-[90vw]`}>
+                <div className={`fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[60] flex items-center gap-3 px-6 py-3 rounded-full shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-max max-w-[90vw]`}>
                     <span className="truncate">{message}</span>
                     <button onClick={onClose} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={16} /></button>
                 </div>
             );
         };
 
+        // --- Main App ---
         function LifeRPG() {
             const [user, setUser] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-user-v2');
@@ -174,7 +184,6 @@
             const [questFilter, setQuestFilter] = React.useState('all'); 
             const [levelUpData, setLevelUpData] = React.useState(null);
             const [notification, setNotification] = React.useState(null); 
-            
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2 });
 
@@ -191,7 +200,7 @@
                 setTimeout(() => setNotification(null), 3000);
             };
 
-            // Effects & Logic (Same as before)
+            // Effects & Logic
             React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); }, [user]);
             React.useEffect(() => { localStorage.setItem('liferpg-tasks', JSON.stringify(tasks)); }, [tasks]);
             React.useEffect(() => { localStorage.setItem('liferpg-rewards-v2', JSON.stringify(rewards)); }, [rewards]);
@@ -244,7 +253,7 @@
             };
 
             const handleManualReset = () => {
-                if(window.confirm("確定要強制重置所有任務為「未完成」嗎？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("已重置", "info"); }
+                if(window.confirm("確定重置任務為「未完成」？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("已重置", "info"); }
             };
             const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("已刪除", "error"); };
             const handleAddTask = (e) => {
@@ -266,20 +275,18 @@
 
             const handleImportStarterPack = () => {
                 if(!window.confirm("匯入新手包？")) return;
-                const pack = [
+                mergePack([
                     { id: 1001, title: "遛狗", category: "fitness", xp: 30, repeat: 'daily' }, { id: 1002, title: "運動", category: "fitness", xp: 50, repeat: 'daily' },
                     { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, repeat: 'daily' }
-                ];
-                mergePack(pack, "新手包");
+                ], "新手包");
             };
 
             const handleImportEngineerPack = () => {
                 if(!window.confirm("匯入環工/理財包？")) return;
-                const pack = [
+                mergePack([
                     { id: 2001, title: "考取環工技師 (PE)", category: "knowledge", xp: 100, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, repeat: 'daily' },
                     { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, repeat: 'weekly' }
-                ];
-                mergePack(pack, "環工包");
+                ], "環工包");
             };
 
             const mergePack = (pack, name) => {
@@ -306,11 +313,12 @@
             });
 
             return (
-                <div className="min-h-screen w-full overflow-x-hidden pb-safe">
+                <>
                     {notification && <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
 
-                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full">
-                        <div className="max-w-3xl mx-auto p-4 space-y-4">
+                    {/* Header (Fixed at top) */}
+                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full pt-safe px-4 pb-4">
+                        <div className="max-w-3xl mx-auto space-y-4">
                             <div className="flex items-center justify-between">
                                 <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">人生 RPG</h1>
                                 <div className="text-xs text-slate-500 font-mono">完成 {user.totalTasksCompleted} 任務</div>
@@ -326,13 +334,17 @@
                         </div>
                     </div>
 
-                    <main className="max-w-3xl mx-auto p-4 pb-24 w-full">
+                    {/* Scrollable Content Area */}
+                    <main className="flex-1 w-full max-w-3xl mx-auto p-4 pb-24">
+                        
+                        {/* Tabs */}
                         <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
                             <button onClick={() => setActiveTab('tasks')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'tasks' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}><CheckCircle2 size={20} /> 任務</button>
                             <button onClick={() => setActiveTab('rewards')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'rewards' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Trophy size={20} /> 獎勵</button>
                             <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 min-w-[100px] rounded-lg font-bold flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'history' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Calendar size={20} /> 紀錄</button>
                         </div>
 
+                        {/* Content based on Tab */}
                         {activeTab === 'tasks' && (
                             <div className="space-y-6 animate-slide-in w-full">
                                 <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex w-full">
@@ -376,7 +388,7 @@
                                     </div>
                                 </div>
 
-                                <div className="space-y-3">
+                                <div className="space-y-3 pb-12">
                                     {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic">暫無任務</div>}
                                     {filteredTasks.sort((a,b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1).map((task) => {
                                         const cat = categories[task.category] || categories.general;
@@ -404,6 +416,7 @@
                             </div>
                         )}
 
+                        {/* Other Tabs same pattern... */}
                         {activeTab === 'rewards' && (
                             <div className="space-y-6 animate-slide-in w-full">
                                 <Card className="p-4 bg-slate-900/50">
@@ -419,7 +432,7 @@
                                         </div>
                                     </div>
                                 </Card>
-                                <div className="grid grid-cols-1 gap-3">
+                                <div className="grid grid-cols-1 gap-3 pb-12">
                                     {rewards.sort((a,b) => a.levelReq - b.levelReq).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         return (
@@ -439,8 +452,8 @@
                             </div>
                         )}
 
-                        {activeTab === 'history' && (
-                             <div className="space-y-6 animate-slide-in w-full">
+                         {activeTab === 'history' && (
+                             <div className="space-y-6 animate-slide-in w-full pb-12">
                                 <div className="flex justify-between items-center">
                                     <h2 className="text-lg font-bold text-white">紀錄</h2>
                                     <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400"><Trash2 size={12} /> 清除</button>
@@ -469,6 +482,7 @@
                             </div>
                         )}
                     </main>
+
                     <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="升級！">
                         <div className="text-center space-y-4">
                             <div className="mx-auto h-20 w-20 rounded-full bg-rose-500 flex items-center justify-center animate-bounce text-white"><Heart size={40} /></div>
@@ -476,7 +490,7 @@
                             <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full">繼續</Button>
                         </div>
                     </Modal>
-                </div>
+                </>
             );
         }
 
