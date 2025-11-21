@@ -2,30 +2,35 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 視口設定：確保在所有手機上正確縮放且不被瀏海遮擋 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG</title>
+    <title>LifeRPG - Job System</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入像素字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
 
     <style>
-        /* --- 基礎設定 --- */
+        /* --- 全局設定 --- */
         html, body {
             margin: 0;
             padding: 0;
-            background-color: #020617;
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            color: #f1f5f9;
+            background-color: #2d3748; 
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            
+            font-family: 'Noto Sans TC', sans-serif;
+            color: #1a202c;
             -webkit-tap-highlight-color: transparent;
-            overflow: hidden; /* 禁止瀏覽器層級捲動 */
+            overflow: hidden;
             width: 100%;
             height: 100%;
-            position: fixed; /* 鎖定畫面 */
+            position: fixed;
         }
 
         #root {
@@ -33,36 +38,99 @@
             height: 100%;
             display: flex;
             flex-direction: column;
-            overflow-y: auto; /* 允許垂直捲動 */
-            overflow-x: hidden; /* 禁止水平捲動 */
+            overflow-y: auto;
+            overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
         }
 
-        /* 防止輸入框點擊時放大 */
-        input, select, textarea {
-            font-size: 16px !important; 
+        /* 像素字體 */
+        .font-pixel {
+            font-family: 'VT323', monospace;
         }
 
-        /* 隱藏捲軸 */
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        /* 輸入框 */
+        input, select, textarea {
+            font-size: 16px !important;
+            background-color: #f7fafc;
+            border: 1px solid #cbd5e0;
+            color: #2d3748;
+            border-radius: 4px;
+        }
+        input:focus, select:focus {
+            outline: 2px solid #63b3ed;
+            border-color: #63b3ed;
+        }
 
-        /* 安全區域 */
+        /* --- RO 風格元件 --- */
+        .ro-window {
+            background: linear-gradient(to bottom, #f0f4f8, #e2e8f0);
+            border: 1px solid #a0aec0;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            position: relative;
+        }
+
+        .ro-title-bar {
+            background: linear-gradient(to bottom, #bfdcf5, #8db2e3);
+            border-bottom: 1px solid #7a9bc9;
+            color: #1a365d;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+            border-radius: 5px 5px 0 0;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .ro-bar-container {
+            background: #2d3748;
+            border-radius: 9999px;
+            padding: 2px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+            border: 1px solid #4a5568;
+        }
+        
+        .ro-bar-fill {
+            background: linear-gradient(to bottom, #8ec5fc 0%, #4a90e2 50%, #2b6cb0 51%, #2c5282 100%);
+            border-radius: 9999px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ro-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.6), rgba(255,255,255,0.1));
+            border-radius: 9999px 9999px 0 0;
+        }
+
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .pt-safe { padding-top: max(1rem, env(safe-area-inset-top)); }
 
-        /* 動畫 */
-        @keyframes bounce {
-            0%, 100% { transform: translateY(-25%); }
-            50% { transform: translateY(0); }
+        .ro-btn-base {
+            border: 1px solid transparent;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            transition: all 0.1s;
         }
-        .animate-bounce { animation: bounce 1s infinite; }
+        .ro-btn-base:active {
+            transform: translateY(1px);
+            box-shadow: none;
+        }
         
-        @keyframes slide-in {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        
+        /* 轉職動畫 */
+        @keyframes job-change-shine {
+            0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
         }
-        .animate-slide-in { animation: slide-in 0.3s ease-out forwards; }
+        .animate-job-change {
+            animation: job-change-shine 1.5s infinite;
+        }
     </style>
 </head>
 <body>
@@ -74,36 +142,58 @@
         const { 
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
-            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save
+            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift
         } = LucideReact;
 
         // --- UI 元件 ---
-        const Card = ({ children, className = "" }) => (
-            <div className={`bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden w-full ${className}`}>
-                {children}
+        
+        const Card = ({ children, className = "", title }) => (
+            <div className={`ro-window flex flex-col ${className}`}>
+                {title && <div className="ro-title-bar flex items-center gap-2">{title}</div>}
+                <div className="p-3">
+                    {children}
+                </div>
             </div>
         );
 
         const Button = ({ onClick, children, variant = "primary", className = "", disabled = false }) => {
             const variants = {
-                primary: "bg-indigo-600 hover:bg-indigo-500 text-white",
-                secondary: "bg-slate-700 hover:bg-slate-600 text-slate-200",
-                danger: "bg-red-500/20 hover:bg-red-500/40 text-red-400 border border-red-500/50",
-                success: "bg-emerald-600 hover:bg-emerald-500 text-white",
-                outline: "border border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white"
+                primary: "bg-blue-100 hover:bg-blue-200 text-blue-900 border-blue-300",
+                secondary: "bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-300",
+                danger: "bg-red-50 hover:bg-red-100 text-red-800 border-red-200",
+                outline: "bg-transparent border-slate-400 text-slate-600 hover:bg-slate-100",
+                gold: "bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border-yellow-400"
             };
+            
             return (
-                <button onClick={onClick} disabled={disabled} className={`px-4 py-3 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <button 
+                    onClick={onClick}
+                    disabled={disabled}
+                    className={`ro-btn-base px-3 py-2 rounded text-sm font-bold flex items-center justify-center gap-2 ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
                     {children}
                 </button>
             );
         };
 
-        const ProgressBar = ({ current, max, colorClass = "bg-indigo-500", height = "h-2" }) => {
+        const ProgressBar = ({ current, max, label, height = "h-4" }) => {
             const percentage = Math.min(100, Math.max(0, (current / max) * 100));
             return (
-                <div className={`${height} w-full bg-slate-900 rounded-full overflow-hidden border border-slate-700`}>
-                    <div className={`h-full transition-all duration-500 ease-out ${colorClass}`} style={{ width: `${percentage}%` }} />
+                <div className="w-full select-none">
+                    <div className="ro-bar-container w-full">
+                        <div className={`${height} w-full relative`}>
+                            <div className="absolute inset-0 w-full h-full bg-slate-800 rounded-full"></div>
+                            <div 
+                                className={`h-full ro-bar-fill transition-all duration-500 ease-out`}
+                                style={{ width: `${percentage}%` }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center z-10">
+                                <span className="text-white font-pixel text-[14px] drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-wide">
+                                    {current} / {max}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             );
         };
@@ -111,13 +201,13 @@
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm px-4">
-                    <div className="bg-slate-800 border border-slate-600 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[85vh] animate-slide-in">
-                        <div className="p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                            <h3 className="text-lg font-bold text-white">{title}</h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white p-1"><X size={24} /></button>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm px-4">
+                    <div className="ro-window w-full max-w-sm flex flex-col max-h-[85vh] shadow-2xl animate-slide-up">
+                        <div className="ro-title-bar flex justify-between items-center shrink-0">
+                            <h3 className="flex items-center gap-2 text-sm"><Info size={14}/> {title}</h3>
+                            <button onClick={onClose} className="text-slate-600 hover:text-red-600 hover:bg-white/50 rounded p-0.5"><X size={18} /></button>
                         </div>
-                        <div className="p-4 overflow-y-auto">
+                        <div className="p-4 overflow-y-auto bg-[#f7fafc]">
                             {children}
                         </div>
                     </div>
@@ -127,11 +217,16 @@
 
         const Notification = ({ message, type, onClose }) => {
             if (!message) return null;
-            const bgColors = { success: "bg-emerald-600", error: "bg-red-600", info: "bg-indigo-600" };
+            const styles = {
+                success: "bg-emerald-100 text-emerald-800 border-emerald-300",
+                error: "bg-red-100 text-red-800 border-red-300",
+                info: "bg-blue-100 text-blue-800 border-blue-300",
+                gold: "bg-yellow-100 text-yellow-800 border-yellow-300 shadow-[0_0_10px_rgba(250,204,21,0.5)]"
+            };
             return (
-                <div className={`fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[60] flex items-center justify-between gap-3 px-4 py-3 rounded-lg shadow-2xl text-white ${bgColors[type] || bgColors.info} animate-slide-in w-[90%] max-w-sm`}>
-                    <span className="truncate text-sm font-medium">{message}</span>
-                    <button onClick={onClose} className="opacity-80 hover:opacity-100 flex-shrink-0"><X size={18} /></button>
+                <div className={`fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[70] flex items-center justify-between gap-3 px-4 py-2 rounded-lg border shadow-lg w-[90%] max-w-sm ${styles[type] || styles.info}`}>
+                    <span className="truncate text-sm font-bold">{message}</span>
+                    <button onClick={onClose} className="opacity-60 hover:opacity-100"><X size={16} /></button>
                 </div>
             );
         };
@@ -140,8 +235,21 @@
         function LifeRPG() {
             const [user, setUser] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-user-v2');
-                if (saved) return JSON.parse(saved);
-                return { base: { level: 1, xp: 0, maxXp: 100 }, job: { level: 1, xp: 0, maxXp: 100 }, totalTasksCompleted: 0 };
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    return { 
+                        ...parsed, 
+                        name: parsed.name || "Player",
+                        jobTitle: parsed.jobTitle || "工程師"
+                    };
+                }
+                return { 
+                    name: "Player",
+                    jobTitle: "工程師", 
+                    base: { level: 1, xp: 0, maxXp: 100 }, 
+                    job: { level: 1, xp: 0, maxXp: 100 }, 
+                    totalTasksCompleted: 0 
+                };
             });
 
             function getWeekNumber(d) {
@@ -168,7 +276,7 @@
             const [rewards, setRewards] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-rewards-v2');
                 return saved ? JSON.parse(saved) : [
-                    { id: 1, title: "放縱餐 (Cheat Meal)", reqType: 'base', levelReq: 2, unlocked: false },
+                    { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, unlocked: false },
                     { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, unlocked: false },
                 ];
             });
@@ -181,18 +289,22 @@
             const [activeTab, setActiveTab] = React.useState('tasks');
             const [questFilter, setQuestFilter] = React.useState('all'); 
             const [levelUpData, setLevelUpData] = React.useState(null);
+            const [jobChangeData, setJobChangeData] = React.useState(null); 
             const [notification, setNotification] = React.useState(null); 
             const [showSettings, setShowSettings] = React.useState(false);
 
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2 });
+            const [newJobTitle, setNewJobTitle] = React.useState(""); 
+
+            const todayDate = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
              const categories = {
-                fitness: { type: 'base', color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", icon: <Dumbbell size={18} />, label: "運動健康" },
-                chores: { type: 'base', color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", icon: <Home size={18} />, label: "居家雜務" },
-                knowledge: { type: 'job', color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20", icon: <BookOpen size={18} />, label: "專業知識" },
-                finance: { type: 'job', color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: <TrendingUp size={18} />, label: "理財投資" },
-                general: { type: 'base', color: "text-slate-400", bg: "bg-slate-500/10", border: "border-slate-500/20", icon: <Star size={18} />, label: "一般任務" },
+                fitness: { type: 'base', bg: "bg-red-100 text-red-800", icon: <Dumbbell size={14} />, label: "運動" },
+                chores: { type: 'base', bg: "bg-blue-100 text-blue-800", icon: <Home size={14} />, label: "雜務" },
+                knowledge: { type: 'job', bg: "bg-purple-100 text-purple-800", icon: <BookOpen size={14} />, label: "知識" },
+                finance: { type: 'job', bg: "bg-emerald-100 text-emerald-800", icon: <TrendingUp size={14} />, label: "理財" },
+                general: { type: 'base', bg: "bg-gray-100 text-gray-800", icon: <Star size={14} />, label: "一般" },
             };
 
             const showNotification = (message, type = 'info') => {
@@ -200,13 +312,14 @@
                 setTimeout(() => setNotification(null), 3000);
             };
 
-            // Effects & Logic
+            // Effects
             React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); }, [user]);
             React.useEffect(() => { localStorage.setItem('liferpg-tasks', JSON.stringify(tasks)); }, [tasks]);
             React.useEffect(() => { localStorage.setItem('liferpg-rewards-v2', JSON.stringify(rewards)); }, [rewards]);
             React.useEffect(() => { localStorage.setItem('liferpg-history', JSON.stringify(history)); }, [history]);
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
 
+            // Daily Reset Logic
             React.useEffect(() => {
                 const today = new Date();
                 const todayString = today.toDateString();
@@ -225,16 +338,34 @@
                         return t;
                     });
                 }
-                if (tasksChanged) { setTasks(updatedTasks); showNotification("每日/每週任務已重置！", "info"); }
+                if (tasksChanged) { setTasks(updatedTasks); showNotification("任務已根據週期重置", "info"); }
                 setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
             }, []);
+
+            // --- 核心邏輯 ---
 
             const handleCompleteTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
                 if (task.completed) return;
+                
                 setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
                 setHistory(prev => [{ logId: Date.now(), title: task.title, category: task.category, xp: task.xp, completedAt: new Date().toISOString() }, ...prev]);
                 addXP(task.xp, task.category);
+
+                const jobKeywords = ["技師", "執照", "License", "轉職", "Job Change", "工程師"];
+                if (jobKeywords.some(keyword => task.title.includes(keyword))) {
+                    setTimeout(() => {
+                        setNewJobTitle(""); 
+                        setJobChangeData(task.title); 
+                    }, 800); 
+                }
+            };
+
+            const confirmJobChange = () => {
+                if (!newJobTitle.trim()) return;
+                setUser(prev => ({ ...prev, jobTitle: newJobTitle }));
+                setJobChangeData(null);
+                showNotification(`轉職成功！職業變更為：${newJobTitle}`, "gold");
             };
 
             const addXP = (amount, categoryKey) => {
@@ -253,9 +384,9 @@
             };
 
             const handleManualReset = () => {
-                if(window.confirm("重置所有任務狀態？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("已重置", "info"); setShowSettings(false); }
+                if(window.confirm("重置所有每日任務？")) { setTasks(tasks.map(t => ({ ...t, completed: false }))); showNotification("已重置", "info"); setShowSettings(false); }
             };
-            const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("任務已刪除", "error"); };
+            const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("已刪除", "error"); };
             const handleAddTask = (e) => {
                 e.preventDefault();
                 if (!newTask.title.trim()) return;
@@ -271,19 +402,19 @@
                 showNotification("新增獎勵", "success");
             };
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
-            const handleClearHistory = () => { if(window.confirm("清除所有紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
+            const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
 
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, version: "1.0" };
+                const data = { user, tasks, rewards, history, appState, version: "1.5" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `liferpg_backup_${new Date().toISOString().split('T')[0]}.json`;
+                link.download = `liferpg_backup.json`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                showNotification("備份已下載！", "success");
+                showNotification("備份已下載", "success");
             };
 
             const handleImportData = (e) => {
@@ -293,12 +424,12 @@
                 reader.onload = (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        if(data.user) setUser(data.user);
+                        if(data.user) setUser({...data.user, name: data.user.name || "Player", jobTitle: data.user.jobTitle || "工程師"});
                         if(data.tasks) setTasks(data.tasks);
                         if(data.rewards) setRewards(data.rewards);
                         if(data.history) setHistory(data.history);
                         if(data.appState) setAppState(data.appState);
-                        showNotification("還原成功！", "success");
+                        showNotification("還原成功", "success");
                         setShowSettings(false);
                     } catch (err) {
                         showNotification("檔案格式錯誤", "error");
@@ -307,8 +438,9 @@
                 reader.readAsText(file);
             };
 
+            // --- 匯入包邏輯 (移除 window.confirm) ---
+
             const handleImportStarterPack = () => {
-                if(!window.confirm("匯入新手包？")) return;
                 mergePack([
                     { id: 1001, title: "遛狗", category: "fitness", xp: 30, repeat: 'daily' }, { id: 1002, title: "運動", category: "fitness", xp: 50, repeat: 'daily' },
                     { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, repeat: 'daily' }
@@ -316,19 +448,64 @@
             };
 
             const handleImportEngineerPack = () => {
-                if(!window.confirm("匯入環工/理財包？")) return;
                 mergePack([
-                    { id: 2001, title: "考取環工技師 (PE)", category: "knowledge", xp: 100, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, repeat: 'daily' },
+                    { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, repeat: 'daily' },
                     { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, repeat: 'weekly' }
                 ], "環工包");
             };
 
+            const handleImportUpgradePack = () => {
+                mergePack([
+                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, repeat: 'none' },
+                    { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, repeat: 'weekly' },
+                    { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, repeat: 'weekly' },
+                    { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, repeat: 'weekly' },
+                    { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, repeat: 'daily' },
+                    { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, repeat: 'weekly' },
+                    { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, repeat: 'weekly' },
+                    { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, repeat: 'daily' },
+                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, repeat: 'weekly' },
+                    { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, repeat: 'weekly' },
+                    { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, repeat: 'weekly' }
+                ], "升級包");
+            };
+
             const mergePack = (pack, name) => {
-                const newT = pack.filter(n => !tasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
-                if (newT.length === 0) { showNotification("你已有這些任務", "info"); return; }
+                const currentTasks = Array.isArray(tasks) ? tasks : [];
+                const newT = pack.filter(n => !currentTasks.some(e => e.title && e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
+                
+                if (newT.length === 0) { 
+                    showNotification("任務已存在，無需重複匯入", "info"); 
+                    return; 
+                }
                 setTasks(p => [...p, ...newT]);
-                showNotification(`已匯入 ${name}`, "success");
+                showNotification(`成功匯入 ${name} (${newT.length} 個新任務)`, "success");
             }
+
+            // --- 獎勵匯入邏輯 (移除指定項目) ---
+
+            const handleImportRewardPack = () => {
+                const rewardPack = [
+                    { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, unlocked: false },
+                    { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, unlocked: false },
+                    { id: 4004, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, unlocked: false },
+                    { id: 4005, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, unlocked: false },
+                    { id: 4006, title: "Steam/遊戲課金 (NT$500內)", reqType: 'job', levelReq: 4, unlocked: false },
+                    { id: 4007, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, unlocked: false },
+                    { id: 4009, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, unlocked: false },
+                    // 移除了：男友按摩券, 新家軟裝小物, 全身精油按摩
+                ];
+
+                const currentRewards = Array.isArray(rewards) ? rewards : [];
+                const newR = rewardPack.filter(n => !currentRewards.some(e => e.title && e.title.trim() === n.title.trim())).map(r => ({...r, id: Date.now() + Math.random()}));
+
+                if (newR.length === 0) {
+                    showNotification("獎勵已存在", "info");
+                    return;
+                }
+                setRewards(p => [...p, ...newR]);
+                showNotification(`成功匯入獎勵包 (${newR.length} 個新獎勵)`, "success");
+            };
 
             const getHistoryByDate = () => {
                 const groups = {};
@@ -347,111 +524,126 @@
             });
 
             return (
-                <div className="w-full min-h-full flex flex-col">
+                <div className="w-full min-h-full flex flex-col text-sm">
                     {notification && <Notification message={notification.message} type={notification.type} onClose={() => setNotification(null)} />}
 
-                    {/* Header */}
-                    <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-2xl w-full pt-safe px-4 pb-4 shrink-0">
-                        <div className="w-full max-w-lg mx-auto space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">人生 RPG</h1>
-                                    <div className="text-xs text-slate-500 font-mono">完成 {user.totalTasksCompleted} 任務</div>
+                    {/* Header (RO Basic Info Window) */}
+                    <div className="sticky top-0 z-30 w-full pt-safe px-3 pb-2 shrink-0" style={{background: '#2d3748'}}>
+                        <div className="ro-window p-3 space-y-2 max-w-lg mx-auto">
+                            <div className="flex items-start justify-between border-b border-slate-300 pb-1 mb-1">
+                                <div className="flex flex-col">
+                                    <h1 className="text-base font-bold text-blue-900 flex items-center gap-2">
+                                        Basic Information
+                                    </h1>
                                 </div>
-                                <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white border border-slate-700">
-                                    <Settings size={20} />
+                                <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-blue-600">
+                                    <Settings size={16} />
                                 </button>
                             </div>
-                            <div className="space-y-2">
-                                <div className="space-y-1">
-                                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-rose-400"><Heart size={10} /> 生活 LV {user.base.level}</span><span className="text-slate-500">{user.base.xp}/{user.base.maxXp}</span></div>
-                                    <ProgressBar current={user.base.xp} max={user.base.maxXp} colorClass="bg-gradient-to-r from-rose-500 to-pink-500" height="h-1.5" />
+                            
+                            <div className="flex justify-between items-end px-1">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-800">{user.name}</div>
+                                    <div className="text-xs font-bold text-blue-700 flex items-center gap-1">
+                                        <Crown size={12} className="text-yellow-500" />
+                                        {user.jobTitle}
+                                    </div>
                                 </div>
-                                <div className="space-y-1">
-                                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider"><span className="flex items-center gap-1 text-cyan-400"><Briefcase size={10} /> 職涯 LV {user.job.level}</span><span className="text-slate-500">{user.job.xp}/{user.job.maxXp}</span></div>
-                                    <ProgressBar current={user.job.xp} max={user.job.maxXp} colorClass="bg-gradient-to-r from-cyan-500 to-blue-500" height="h-1.5" />
+                                <div className="text-[10px] text-slate-500 font-pixel text-right">
+                                    {todayDate}
                                 </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-700 w-14 shrink-0">Base Lv.</span>
+                                <ProgressBar current={user.base.xp} max={user.base.maxXp} height="h-3" />
+                                <span className="text-xs font-bold w-8 text-right font-pixel">{user.base.level}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-700 w-14 shrink-0">Job Lv.</span>
+                                <ProgressBar current={user.job.xp} max={user.job.maxXp} height="h-3" />
+                                <span className="text-xs font-bold w-8 text-right font-pixel">{user.job.level}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Scrollable Content Area */}
-                    <main className="flex-1 w-full max-w-lg mx-auto p-4 pb-32 overflow-x-hidden">
+                    {/* Main Content */}
+                    <main className="flex-1 w-full max-w-lg mx-auto p-3 pb-32 overflow-x-hidden">
                         
-                        {/* Tabs - Grid Layout ensures fit */}
-                        <div className="grid grid-cols-3 gap-2 mb-6 w-full">
-                            <button onClick={() => setActiveTab('tasks')} className={`py-2 rounded-lg font-bold flex items-center justify-center gap-1 text-sm ${activeTab === 'tasks' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}><CheckCircle2 size={16} /> 任務</button>
-                            <button onClick={() => setActiveTab('rewards')} className={`py-2 rounded-lg font-bold flex items-center justify-center gap-1 text-sm ${activeTab === 'rewards' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Trophy size={16} /> 獎勵</button>
-                            <button onClick={() => setActiveTab('history')} className={`py-2 rounded-lg font-bold flex items-center justify-center gap-1 text-sm ${activeTab === 'history' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400'}`}><Calendar size={16} /> 紀錄</button>
+                        <div className="grid grid-cols-3 gap-2 mb-4 w-full">
+                            <button onClick={() => setActiveTab('tasks')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'tasks' ? 'bg-blue-200 text-blue-900 border-blue-400' : 'bg-white text-slate-600 border-slate-300'}`}>
+                                <CheckCircle2 size={14} /> 任務
+                            </button>
+                            <button onClick={() => setActiveTab('rewards')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'rewards' ? 'bg-amber-200 text-amber-900 border-amber-400' : 'bg-white text-slate-600 border-slate-300'}`}>
+                                <Trophy size={14} /> 獎勵
+                            </button>
+                            <button onClick={() => setActiveTab('history')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'history' ? 'bg-teal-200 text-teal-900 border-teal-400' : 'bg-white text-slate-600 border-slate-300'}`}>
+                                <Calendar size={14} /> 紀錄
+                            </button>
                         </div>
 
-                        {/* Tasks Tab */}
                         {activeTab === 'tasks' && (
-                            <div className="space-y-4 w-full">
-                                {/* Filter - Grid Layout */}
-                                <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 grid grid-cols-3 gap-1 w-full">
-                                    <button onClick={() => setQuestFilter('all')} className={`py-2 text-xs font-medium rounded-lg ${questFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>全部</button>
-                                    <button onClick={() => setQuestFilter('base')} className={`py-2 text-xs font-medium rounded-lg ${questFilter === 'base' ? 'bg-rose-600 text-white' : 'text-slate-400'}`}>基礎</button>
-                                    <button onClick={() => setQuestFilter('job')} className={`py-2 text-xs font-medium rounded-lg ${questFilter === 'job' ? 'bg-cyan-600 text-white' : 'text-slate-400'}`}>職涯</button>
+                            <div className="space-y-4 animate-slide-in">
+                                <div className="flex justify-center gap-2 mb-2">
+                                    <button onClick={() => setQuestFilter('all')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
+                                    <button onClick={() => setQuestFilter('base')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
+                                    <button onClick={() => setQuestFilter('job')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
                                 </div>
 
-                                {/* Add Task Form - Responsive Stack */}
-                                <Card className="p-3 bg-slate-900/50">
-                                    <form onSubmit={handleAddTask} className="flex flex-col gap-3 w-full">
-                                        <input type="text" placeholder="輸入任務名稱..." className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-3 text-white focus:outline-none focus:border-indigo-500 text-sm" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
-                                        
-                                        <div className="grid grid-cols-2 gap-2 w-full">
-                                            <select className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm w-full" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
+                                <Card title="Quest Board">
+                                    <div className="flex flex-col gap-2">
+                                        <input type="text" placeholder="新任務..." className="w-full px-2 py-1.5" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <select className="px-1 py-1.5 text-xs" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>
                                                 {Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}
                                             </select>
-                                            <select className="bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm w-full" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
+                                            <select className="px-1 py-1.5 text-xs" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
                                                 <option value="daily">每日</option>
                                                 <option value="weekly">每週</option>
                                                 <option value="none">一次</option>
                                             </select>
                                         </div>
-                                        
-                                        <div className="grid grid-cols-3 gap-2 w-full">
-                                             <select className="col-span-2 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm w-full" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
+                                        <div className="flex gap-2">
+                                             <select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
                                                 <option value="10">10 XP</option>
                                                 <option value="20">20 XP</option>
                                                 <option value="30">30 XP</option>
                                                 <option value="50">50 XP</option>
                                             </select>
-                                            <Button variant="primary" className="py-2 text-sm"><Plus size={18} /></Button>
+                                            <Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button>
                                         </div>
-                                    </form>
+                                    </div>
                                 </Card>
 
-                                <div className="flex flex-wrap justify-between items-center gap-2 w-full">
-                                    <h2 className="text-sm font-bold text-white">進行中 ({filteredTasks.length})</h2>
-                                    <div className="flex gap-2">
-                                        <button onClick={handleImportEngineerPack} className="text-xs flex items-center gap-1 text-cyan-400 border border-cyan-500/20 rounded px-2 py-1 bg-cyan-950/30"><HardHat size={12} /> 環工</button>
-                                        <button onClick={handleImportStarterPack} className="text-xs flex items-center gap-1 text-indigo-400 border border-indigo-500/20 rounded px-2 py-1 bg-indigo-950/30"><Download size={12} /> 新手</button>
-                                    </div>
+                                {/* Quick Import Buttons */}
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    <button onClick={handleImportUpgradePack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-yellow-300 border border-slate-600 hover:bg-slate-600"><Sparkles size={12} /> 升級包</button>
+                                    <button onClick={handleImportEngineerPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-cyan-300 border border-slate-600 hover:bg-slate-600"><HardHat size={12} /> 環工包</button>
+                                    <button onClick={handleImportStarterPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-indigo-300 border border-slate-600 hover:bg-slate-600"><Download size={12} /> 新手包</button>
                                 </div>
 
-                                <div className="space-y-3 w-full">
-                                    {filteredTasks.length === 0 && <div className="text-center py-12 text-slate-500 italic text-sm">暫無任務</div>}
+                                {/* Task List */}
+                                <div className="space-y-2">
+                                    {filteredTasks.length === 0 && <div className="text-center py-8 text-slate-400 text-xs">無任務</div>}
                                     {filteredTasks.sort((a,b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1).map((task) => {
                                         const cat = categories[task.category] || categories.general;
-                                        const xpType = cat.type === 'base' ? '基礎' : '職涯';
-                                        const xpColor = cat.type === 'base' ? 'text-rose-400' : 'text-cyan-400';
+                                        const xpType = cat.type === 'base' ? 'Base' : 'Job';
                                         return (
-                                            <div key={task.id} className={`relative flex items-center justify-between p-3 rounded-xl border w-full ${task.completed ? 'bg-slate-900/50 border-slate-800 opacity-60' : `bg-slate-800 ${cat.border} shadow-lg`}`}>
-                                                <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
-                                                    <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center border-2 ${task.completed ? 'bg-green-500/20 border-green-500 text-green-500' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
-                                                        {task.completed ? <CheckCircle2 size={16} /> : <div className="h-2 w-2 rounded-full bg-current opacity-20" />}
+                                            <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${task.completed ? 'opacity-60 bg-gray-200' : 'bg-white'}`}>
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    <button onClick={() => handleCompleteTask(task.id)} disabled={task.completed} className={`shrink-0 h-6 w-6 rounded shadow-sm flex items-center justify-center border ${task.completed ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400'}`}>
+                                                        {task.completed && <CheckCircle2 size={14} />}
                                                     </button>
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 ${cat.color} ${cat.bg}`}>{cat.icon} {cat.label}</span>
-                                                            <span className={`text-[10px] font-mono ${xpColor}`}>+{task.xp} {xpType}</span>
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <span className={`text-[9px] px-1 rounded border ${cat.bg} flex items-center gap-1`}>{cat.icon} {cat.label}</span>
+                                                            <span className="text-[10px] font-pixel text-slate-500">+{task.xp} {xpType}</span>
                                                         </div>
-                                                        <h3 className={`font-medium truncate text-sm ${task.completed ? 'line-through text-slate-500' : 'text-white'}`}>{task.title}</h3>
+                                                        <h3 className={`font-bold text-sm truncate ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</h3>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 text-slate-500 hover:text-red-400 ml-1 shrink-0"><Trash2 size={16} /></button>
+                                                <button onClick={() => handleDeleteTask(task.id)} className="ml-2 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                                             </div>
                                         );
                                     })}
@@ -461,33 +653,39 @@
 
                         {/* Rewards Tab */}
                         {activeTab === 'rewards' && (
-                            <div className="space-y-4 animate-slide-in w-full">
-                                <Card className="p-3 bg-slate-900/50">
-                                    <div className="flex flex-col gap-3 w-full">
-                                        <input type="text" placeholder="獎勵名稱" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-3 text-white text-sm focus:outline-none" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
+                            <div className="space-y-4 animate-slide-in">
+                                <Card title="Kafra Shop">
+                                    <div className="flex flex-col gap-2">
+                                        <input type="text" placeholder="獎勵名稱..." className="w-full px-2 py-1.5" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
                                         <div className="grid grid-cols-3 gap-2">
-                                            <select className="col-span-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-300 text-sm" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
-                                                <option value="base">基礎</option>
-                                                <option value="job">職涯</option>
+                                            <select className="col-span-1 px-1 py-1.5 text-xs" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
+                                                <option value="base">Base Lv</option>
+                                                <option value="job">Job Lv</option>
                                             </select>
-                                            <input type="number" placeholder="等級" className="col-span-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-white text-sm" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
-                                            <Button variant="primary" onClick={handleAddReward} className="py-2 text-sm"><Plus size={18} /></Button>
+                                            <input type="number" placeholder="Lv" className="col-span-1 px-2 py-1.5" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
+                                            <Button variant="primary" onClick={handleAddReward} className="text-xs"><Plus size={14} /></Button>
                                         </div>
                                     </div>
                                 </Card>
-                                <div className="grid grid-cols-1 gap-3 pb-12">
+
+                                {/* Import Rewards Button */}
+                                <div className="flex justify-end">
+                                    <button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-2">
                                     {rewards.sort((a,b) => a.levelReq - b.levelReq).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         return (
-                                            <div key={reward.id} className={`relative p-4 rounded-xl border flex items-center justify-between ${isUnlocked ? 'bg-gradient-to-br from-amber-900/20 to-slate-800 border-amber-500/30' : 'bg-slate-800 border-slate-700 opacity-75'}`}>
+                                            <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-green-50 border-green-200' : 'bg-gray-100 opacity-80'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`p-2 rounded-lg ${isUnlocked ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-500'}`}>{isUnlocked ? <Unlock size={20} /> : <Lock size={20} />}</div>
+                                                    <div className={`p-1.5 rounded ${isUnlocked ? 'text-green-600 bg-green-100' : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <Unlock size={16} /> : <Lock size={16} />}</div>
                                                     <div>
-                                                        <h3 className={`font-bold text-sm ${isUnlocked ? 'text-white' : 'text-slate-400'}`}>{reward.title}</h3>
-                                                        <p className={`text-xs ${isUnlocked ? 'text-green-400' : 'text-red-400'}`}>{isUnlocked ? '已解鎖' : `需 ${reward.reqType === 'base' ? '基礎' : '職涯'} LV ${reward.levelReq}`}</p>
+                                                        <h3 className="font-bold text-sm text-slate-700">{reward.title}</h3>
+                                                        <p className="text-[10px] text-slate-500">{isUnlocked ? 'Unlocked' : `Req: ${reward.reqType === 'base' ? 'Base' : 'Job'} Lv.${reward.levelReq}`}</p>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-600 hover:text-red-400"><Trash2 size={16} /></button>
+                                                <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                                             </div>
                                         );
                                     })}
@@ -495,26 +693,24 @@
                             </div>
                         )}
 
-                         {activeTab === 'history' && (
-                             <div className="space-y-6 animate-slide-in w-full pb-12">
-                                <div className="flex justify-between items-center">
-                                    <h2 className="text-sm font-bold text-white">紀錄</h2>
-                                    <button onClick={handleClearHistory} className="text-xs flex items-center gap-1 text-slate-400 hover:text-red-400"><Trash2 size={12} /> 清除</button>
+                        {/* History Tab */}
+                        {activeTab === 'history' && (
+                             <div className="space-y-4 animate-slide-in">
+                                <div className="flex justify-between items-center px-1">
+                                    <h2 className="text-xs font-bold text-slate-400 uppercase">Adventure Log</h2>
+                                    <button onClick={handleClearHistory} className="text-[10px] text-slate-500 hover:text-red-500 flex items-center gap-1"><Trash2 size={10} /> 清除</button>
                                 </div>
-                                {history.length === 0 ? <div className="text-center py-12 text-slate-500 italic border border-dashed border-slate-800 rounded-xl text-sm">尚無紀錄</div> : (
-                                    <div className="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+                                {history.length === 0 ? <div className="text-center py-12 text-slate-400 text-xs">無紀錄</div> : (
+                                    <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
-                                                <div className="mb-2"><span className="text-xs font-bold text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded">{date}</span></div>
-                                                <div className="space-y-2">
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border border-slate-400 transform -translate-x-1/2 z-10"></div>
+                                                <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
+                                                <div className="space-y-1.5">
                                                     {entries.map(entry => (
-                                                        <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between">
-                                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                                <div className={`w-2 h-2 shrink-0 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
-                                                                <span className="text-sm text-slate-200 truncate">{entry.title}</span>
-                                                            </div>
-                                                            <span className="text-xs text-indigo-400 shrink-0">+{entry.xp}</span>
+                                                        <div key={entry.logId} className="bg-white/90 border border-slate-300 p-2 rounded flex items-center justify-between shadow-sm">
+                                                            <span className="text-xs text-slate-700 truncate pr-2">{entry.title}</span>
+                                                            <span className="text-[10px] font-bold text-blue-600 shrink-0">+{entry.xp} XP</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -527,34 +723,75 @@
                     </main>
 
                     {/* Settings Modal */}
-                    <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="設定">
+                    <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="System">
                         <div className="space-y-4 w-full">
-                            <div className="bg-slate-900 p-4 rounded-xl space-y-3 border border-slate-700">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">資料備份</h4>
-                                <p className="text-xs text-slate-500">存檔至手機/電腦，或還原進度。</p>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button onClick={handleExportData} className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-xs"><Save size={14} /> 匯出</button>
-                                    <label className="flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg text-xs cursor-pointer">
-                                        <Upload size={14} /> 匯入
+                            <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
+                                <h4 className="text-[10px] font-bold text-slate-500 uppercase">Data</h4>
+                                <div className="flex gap-2">
+                                    <Button onClick={handleExportData} className="flex-1 text-xs"><Save size={14} /> 存檔</Button>
+                                    <label className="flex-1 ro-btn-base px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 bg-gray-100 text-gray-800 border-gray-300 cursor-pointer hover:bg-gray-200">
+                                        <Upload size={14} /> 讀檔
                                         <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
                                     </label>
                                 </div>
                             </div>
-                            <div className="bg-slate-900 p-4 rounded-xl space-y-3 border border-slate-700">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">危險操作</h4>
+                            
+                            <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
+                                <h4 className="text-[10px] font-bold text-slate-500 uppercase">Change Job</h4>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="手動輸入新職業..." 
+                                        className="flex-1 px-2 py-1 text-xs"
+                                        value={newJobTitle}
+                                        onChange={(e) => setNewJobTitle(e.target.value)}
+                                    />
+                                    <Button onClick={confirmJobChange} variant="gold" className="text-xs">變更</Button>
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
+                                <h4 className="text-[10px] font-bold text-slate-500 uppercase">Reset</h4>
                                 <div className="grid grid-cols-1 gap-2">
-                                    <button onClick={handleManualReset} className="flex items-center justify-center gap-2 bg-slate-800 border border-slate-700 text-slate-300 py-2.5 rounded-lg text-xs"><RefreshCw size={14} /> 重置每日任務</button>
-                                    <button onClick={handleClearHistory} className="flex items-center justify-center gap-2 bg-red-900/20 border border-red-900/50 text-red-400 py-2.5 rounded-lg text-xs"><Trash2 size={14} /> 清除所有紀錄</button>
+                                    <Button onClick={handleManualReset} variant="secondary" className="text-xs"><RefreshCw size={14} /> 重置每日任務</Button>
+                                    <Button onClick={handleClearHistory} variant="danger" className="text-xs"><Trash2 size={14} /> 清除紀錄</Button>
                                 </div>
                             </div>
                         </div>
                     </Modal>
 
-                    <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="升級！">
-                        <div className="text-center space-y-4">
-                            <div className="mx-auto h-20 w-20 rounded-full bg-rose-500 flex items-center justify-center animate-bounce text-white"><Heart size={40} /></div>
-                            <h2 className="text-3xl font-black text-white">LV {levelUpData?.level}</h2>
-                            <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full">繼續</Button>
+                    {/* Level Up Modal */}
+                    <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="LEVEL UP!">
+                        <div className="text-center space-y-4 py-4">
+                            <div className="mx-auto h-20 w-20 rounded-full bg-yellow-100 flex items-center justify-center animate-bounce text-yellow-600 border-4 border-yellow-200">
+                                <img src="https://api.iconify.design/mdi:wings.svg?color=goldenrod" className="w-12 h-12" alt="wings" />
+                            </div>
+                            <div>
+                                <h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2>
+                                <p className="text-sm text-slate-600 mt-1">Congratulations!</p>
+                            </div>
+                            <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button>
+                        </div>
+                    </Modal>
+
+                    {/* Job Change Modal */}
+                    <Modal isOpen={!!jobChangeData} onClose={() => setJobChangeData(null)} title="JOB CHANGE!">
+                        <div className="text-center space-y-4 py-4">
+                            <div className="mx-auto h-24 w-24 rounded-full bg-gradient-to-b from-yellow-300 to-yellow-500 flex items-center justify-center animate-job-change border-4 border-white shadow-lg">
+                                <Crown size={48} className="text-white drop-shadow-md" />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-blue-900">完成: {jobChangeData}</h2>
+                                <p className="text-sm text-slate-600 mt-2">您已具備轉職資格！請輸入新職業：</p>
+                                <input 
+                                    type="text" 
+                                    placeholder="例如: 資深環工技師" 
+                                    className="w-full mt-3 px-3 py-2 text-center font-bold text-lg border-2 border-yellow-400 focus:border-yellow-600 rounded"
+                                    value={newJobTitle}
+                                    onChange={(e) => setNewJobTitle(e.target.value)}
+                                />
+                            </div>
+                            <Button onClick={confirmJobChange} variant="gold" className="w-full mt-2 py-3 text-base">確認轉職</Button>
                         </div>
                     </Modal>
                 </div>
