@@ -142,7 +142,7 @@
         const { 
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
-            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag
+            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery
         } = LucideReact;
 
         // --- UI 元件 ---
@@ -290,7 +290,7 @@
                 const saved = localStorage.getItem('liferpg-tasks');
                 return saved ? JSON.parse(saved) : [
                     { id: 1, title: "遛狗", category: "fitness", xp: 30, money: 50, completed: false, repeat: 'daily' },
-                    { id: 2, title: "健身/運動", category: "fitness", xp: 50, money: 100, completed: false, repeat: 'daily' },
+                    { id: 2, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, completed: false, repeat: 'daily' },
                     { id: 3, title: "洗衣服", category: "chores", xp: 40, money: 60, completed: false, repeat: 'weekly' },
                 ];
             });
@@ -324,7 +324,7 @@
             const todayDate = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
              const categories = {
-                fitness: { type: 'base', bg: "bg-red-100 text-red-800", icon: <Dumbbell size={14} />, label: "運動" },
+                fitness: { type: 'base', bg: "bg-red-100 text-red-800", icon: <Dumbbell size={14} />, label: "健康" },
                 chores: { type: 'base', bg: "bg-blue-100 text-blue-800", icon: <Home size={14} />, label: "雜務" },
                 knowledge: { type: 'job', bg: "bg-purple-100 text-purple-800", icon: <BookOpen size={14} />, label: "知識" },
                 finance: { type: 'job', bg: "bg-emerald-100 text-emerald-800", icon: <TrendingUp size={14} />, label: "理財" },
@@ -343,6 +343,16 @@
             React.useEffect(() => { localStorage.setItem('liferpg-history', JSON.stringify(history)); }, [history]);
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
 
+            // 自動遷移舊資料：確保「健身/運動」有 STA 獎勵
+            React.useEffect(() => {
+                setTasks(prevTasks => prevTasks.map(t => {
+                    if ((t.title === "健身/運動" || t.title === "運動") && !t.stamina) {
+                        return { ...t, stamina: 34 };
+                    }
+                    return t;
+                }));
+            }, []);
+
             // Daily Reset Logic (包含 Stamina 回復)
             React.useEffect(() => {
                 const today = new Date();
@@ -358,7 +368,7 @@
                         return t;
                     });
 
-                    // *** Stamina Daily Regen: 每天 +34 (約3天集滿 36歲養生模式) ***
+                    // *** Stamina Daily Regen: 每天 +34 (約3天集滿) ***
                     setUser(prev => ({
                         ...prev,
                         stamina: {
@@ -386,8 +396,8 @@
 
             const handleToggleTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
-                // Hardcore Mode: money = xp * 2
-                const taskMoney = task.money !== undefined ? task.money : (task.xp * 2);
+                const taskMoney = task.money !== undefined ? task.money : (task.xp * 2); // Hardcore Mode default
+                const taskStamina = task.stamina || 0;
                 
                 if (!task.completed) {
                     // 完成
@@ -399,10 +409,15 @@
                         category: task.category, 
                         xp: task.xp, 
                         money: taskMoney, 
+                        stamina: taskStamina,
                         completedAt: new Date().toISOString() 
                     }, ...prev]);
-                    updateUserStatus(task.xp, task.category, taskMoney);
-                    showNotification(`完成！獲得 ${task.xp} XP, $${taskMoney} Z`, "success");
+                    
+                    updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
+
+                    let notifMsg = `完成！獲得 ${task.xp} XP, $${taskMoney} Z`;
+                    if (taskStamina > 0) notifMsg += `, +${taskStamina} STA`;
+                    showNotification(notifMsg, "success");
 
                     const jobKeywords = ["技師", "執照", "License", "轉職", "Job Change", "工程師"];
                     if (jobKeywords.some(keyword => task.title.includes(keyword))) {
@@ -420,8 +435,8 @@
                         }
                         return prev;
                     });
-                    updateUserStatus(-task.xp, task.category, -taskMoney);
-                    showNotification("已復原 (回收 XP & Zeny)", "info");
+                    updateUserStatus(-task.xp, task.category, -taskMoney, -taskStamina);
+                    showNotification("已復原 (回收 XP, Zeny & STA)", "info");
                 }
             };
 
@@ -444,10 +459,7 @@
                         showNotification("精力不足！休息一下吧", "error");
                         return;
                     } else {
-                        setUser(prev => ({
-                            ...prev,
-                            stamina: { ...prev.stamina, current: prev.stamina.current - cost }
-                        }));
+                        updateUserStatus(0, "general", 0, -cost);
                         showNotification(`聖人模式 (-${cost} STA)`, "success");
                     }
                 }
@@ -471,7 +483,7 @@
             };
 
             // 統一的狀態更新函式
-            const updateUserStatus = (xpAmount, categoryKey, moneyAmount) => {
+            const updateUserStatus = (xpAmount, categoryKey, moneyAmount, staminaAmount = 0) => {
                 const category = categories[categoryKey] || categories.general;
                 const type = category.type;
                 
@@ -482,6 +494,14 @@
                     let newMaxXp = currentStats.maxXp;
                     let newZeny = Math.max(0, (prev.zeny || 0) + moneyAmount); 
                     
+                    // Stamina Logic
+                    let newStaminaCurrent = prev.stamina?.current || 0;
+                    if (staminaAmount !== 0) {
+                         newStaminaCurrent = Math.min((prev.stamina?.max || 100), newStaminaCurrent + staminaAmount);
+                         newStaminaCurrent = Math.max(0, newStaminaCurrent); // Prevent negative if undoing? 
+                         // Actually if undoing (-34), it reduces. It's fine.
+                    }
+
                     let leveledUp = false;
                     let totalCompletedChange = xpAmount > 0 ? 1 : -1;
                     if (xpAmount === 0) totalCompletedChange = 0;
@@ -512,6 +532,7 @@
                     return { 
                         ...prev, 
                         zeny: newZeny,
+                        stamina: { ...prev.stamina, current: newStaminaCurrent },
                         [type]: { level: newLevel, xp: newXP, maxXp: newMaxXp }, 
                         totalTasksCompleted: Math.max(0, prev.totalTasksCompleted + totalCompletedChange) 
                     };
@@ -557,7 +578,7 @@
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
 
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, version: "2.4" };
+                const data = { user, tasks, rewards, history, appState, version: "2.6" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -595,8 +616,9 @@
             const handleImportStarterPack = () => {
                 mergePack([
                     { id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, 
-                    { id: 1002, title: "運動", category: "fitness", xp: 50, money: 100, repeat: 'daily' },
+                    { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' },
                     { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, 
+                    { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }
                 ], "新手包");
             };
@@ -620,7 +642,7 @@
                     { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' },
                     { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' },
                     { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' },
-                    { id: 3011, title: "研讀環工英文/最新法規", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
+                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
                     { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
                     { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
                 ], "升級包");
@@ -635,7 +657,7 @@
                     return; 
                 }
                 setTasks(p => [...p, ...newT]);
-                showNotification(`已匯入 ${name}`, "success");
+                showNotification(`已匯入 ${name} (${newT.length} 個新任務)`, "success");
             }
 
             const handleImportRewardPack = () => {
@@ -812,6 +834,7 @@
                                                             <span className={`text-[9px] px-1 rounded border ${cat.bg} flex items-center gap-1`}>{cat.icon} {cat.label}</span>
                                                             <span className="text-[10px] font-pixel text-slate-500">+{task.xp} {xpType}</span>
                                                             <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${moneyReward} Z</span>
+                                                            {task.stamina > 0 && <span className="text-[10px] font-pixel text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">+{task.stamina} STA</span>}
                                                         </div>
                                                         <h3 className={`font-bold text-sm truncate ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</h3>
                                                     </div>
@@ -922,6 +945,7 @@
                                                             <div className="flex flex-col items-end shrink-0">
                                                                 {entry.xp !== 0 && <span className={`text-[10px] font-pixel ${entry.xp > 0 ? 'text-blue-600' : 'text-red-500'}`}>{entry.xp > 0 ? '+' : ''}{entry.xp} XP</span>}
                                                                 {entry.money !== 0 && <span className={`text-[10px] font-pixel ${entry.money > 0 ? 'text-yellow-600' : 'text-red-500'}`}>{entry.money > 0 ? '+' : ''}${entry.money} Z</span>}
+                                                                {entry.stamina !== 0 && entry.stamina !== undefined && <span className={`text-[10px] font-pixel ${entry.stamina > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{entry.stamina > 0 ? '+' : ''}{entry.stamina} STA</span>}
                                                             </div>
                                                         </div>
                                                     ))}
@@ -980,7 +1004,7 @@
                             </div>
                             <div>
                                 <h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2>
-                                <p className="text-sm text-slate-300 mt-1">Congratulations!</p>
+                                <p className="text-sm text-slate-600 mt-1">Congratulations!</p>
                             </div>
                             <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button>
                         </div>
