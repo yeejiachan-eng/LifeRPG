@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Final</title>
+    <title>LifeRPG - Stamina System</title>
     
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="[https://unpkg.com/react@18/umd/react.development.js](https://unpkg.com/react@18/umd/react.development.js)" crossorigin></script>
+    <script src="[https://unpkg.com/react-dom@18/umd/react-dom.development.js](https://unpkg.com/react-dom@18/umd/react-dom.development.js)" crossorigin></script>
+    <script src="[https://unpkg.com/@babel/standalone/babel.min.js](https://unpkg.com/@babel/standalone/babel.min.js)"></script>
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
 
     <!-- 引入像素字體 -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
+    <link href="[https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap](https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=VT323&display=swap)" rel="stylesheet">
 
     <style>
         /* --- 全局設定 --- */
@@ -137,12 +137,12 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import * as LucideReact from "https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0";
+        import * as LucideReact from "[https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0](https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0)";
 
         const { 
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
-            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, RotateCcw
+            Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery
         } = LucideReact;
 
         // --- UI 元件 ---
@@ -162,34 +162,40 @@
                 secondary: "bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-300",
                 danger: "bg-red-50 hover:bg-red-100 text-red-800 border-red-200",
                 outline: "bg-transparent border-slate-400 text-slate-600 hover:bg-slate-100",
-                gold: "bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border-yellow-400"
+                gold: "bg-yellow-100 hover:bg-yellow-200 text-yellow-900 border-yellow-400",
+                green: "bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-300"
             };
             
             return (
                 <button 
                     onClick={onClick}
                     disabled={disabled}
-                    className={`ro-btn-base px-3 py-2 rounded text-sm font-bold flex items-center justify-center gap-2 ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`ro-btn-base px-3 py-2 rounded text-sm font-bold flex items-center justify-center gap-2 ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 >
                     {children}
                 </button>
             );
         };
 
-        const ProgressBar = ({ current, max, label, height = "h-4" }) => {
+        const ProgressBar = ({ current, max, label, height = "h-4", type = "hp" }) => {
             const percentage = Math.min(100, Math.max(0, (current / max) * 100));
+            
+            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; // default SP
+            if (type === 'hp') barColor = 'bg-gradient-to-b from-red-400 via-red-500 to-red-700';
+            if (type === 'stamina') barColor = 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700';
+
             return (
                 <div className="w-full select-none">
                     <div className="ro-bar-container w-full">
                         <div className={`${height} w-full relative`}>
                             <div className="absolute inset-0 w-full h-full bg-slate-800 rounded-full"></div>
                             <div 
-                                className={`h-full ro-bar-fill transition-all duration-500 ease-out`}
+                                className={`h-full ro-bar-fill transition-all duration-500 ease-out ${barColor}`}
                                 style={{ width: `${percentage}%` }}
                             />
                             <div className="absolute inset-0 flex items-center justify-center z-10">
-                                <span className="text-white font-pixel text-[14px] drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-wide">
-                                    {current} / {max}
+                                <span className="text-white font-pixel text-[12px] sm:text-[14px] drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-wide">
+                                    {Math.floor(current)} / {max}
                                 </span>
                             </div>
                         </div>
@@ -240,14 +246,18 @@
                     return { 
                         ...parsed, 
                         name: parsed.name || "Player",
-                        jobTitle: parsed.jobTitle || "工程師"
+                        jobTitle: parsed.jobTitle || "工程師",
+                        zeny: parsed.zeny || 0,
+                        stamina: parsed.stamina || { current: 100, max: 100 } // 新增精力系統
                     };
                 }
                 return { 
                     name: "Player",
                     jobTitle: "工程師", 
+                    zeny: 0,
                     base: { level: 1, xp: 0, maxXp: 100 }, 
                     job: { level: 1, xp: 0, maxXp: 100 }, 
+                    stamina: { current: 100, max: 100 }, // 初始滿精力
                     totalTasksCompleted: 0 
                 };
             });
@@ -259,7 +269,6 @@
                 return Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
             }
 
-            // 輔助函式：計算該等級的最大 XP
             const calculateMaxXP = (level) => {
                 let xp = 100;
                 for (let i = 1; i < level; i++) {
@@ -276,17 +285,19 @@
             const [tasks, setTasks] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-tasks');
                 return saved ? JSON.parse(saved) : [
-                    { id: 1, title: "遛狗", category: "fitness", xp: 30, completed: false, repeat: 'daily' },
-                    { id: 2, title: "健身/運動", category: "fitness", xp: 50, completed: false, repeat: 'daily' },
-                    { id: 3, title: "洗衣服", category: "chores", xp: 40, completed: false, repeat: 'weekly' },
+                    { id: 1, title: "遛狗", category: "fitness", xp: 30, money: 50, completed: false, repeat: 'daily' },
+                    { id: 2, title: "健身/運動", category: "fitness", xp: 50, money: 100, completed: false, repeat: 'daily' },
+                    { id: 3, title: "洗衣服", category: "chores", xp: 40, money: 60, completed: false, repeat: 'weekly' },
                 ];
             });
 
             const [rewards, setRewards] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-rewards-v2');
                 return saved ? JSON.parse(saved) : [
-                    { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, unlocked: false },
-                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, unlocked: false },
+                    { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, cost: 600, currency: 'zeny', unlocked: false },
+                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', unlocked: false },
+                    // 預設加入聖人模式
+                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true },
                 ];
             });
 
@@ -303,7 +314,7 @@
             const [showSettings, setShowSettings] = React.useState(false);
 
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
-            const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2 });
+            const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
             const todayDate = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
@@ -328,80 +339,138 @@
             React.useEffect(() => { localStorage.setItem('liferpg-history', JSON.stringify(history)); }, [history]);
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
 
-            // Daily Reset Logic
+            // Daily Reset Logic (包含 Stamina 回復)
             React.useEffect(() => {
                 const today = new Date();
                 const todayString = today.toDateString();
                 const currentWeek = getWeekNumber(today);
                 let updatedTasks = [...tasks];
                 let tasksChanged = false;
+                
                 if (appState.lastVisitDate !== todayString) {
+                    // 每日任務重置
                     updatedTasks = updatedTasks.map(t => {
                         if (t.repeat === 'daily' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
                         return t;
                     });
+
+                    // *** Stamina Daily Regen: 每天 +34 (約3天集滿) ***
+                    setUser(prev => ({
+                        ...prev,
+                        stamina: {
+                            ...prev.stamina,
+                            // 確保 stamina 物件存在
+                            max: prev.stamina?.max || 100,
+                            current: Math.min((prev.stamina?.max || 100), (prev.stamina?.current || 0) + 34)
+                        }
+                    }));
+                    showNotification("新的一天！精力恢復 +34 (約3天冷卻)", "info");
                 }
+                
                 if (appState.lastVisitWeek !== currentWeek) {
                     updatedTasks = updatedTasks.map(t => {
                         if (t.repeat === 'weekly' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
                         return t;
                     });
                 }
-                if (tasksChanged) { setTasks(updatedTasks); showNotification("任務已根據週期重置", "info"); }
+                
+                if (tasksChanged) { setTasks(updatedTasks); }
                 setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
             }, []);
 
-            // --- 核心邏輯：支援 Toggle (完成/取消) ---
+            // --- 核心邏輯 ---
 
             const handleToggleTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
+                // Hardcore Mode: money = xp * 2
+                const taskMoney = task.money !== undefined ? task.money : (task.xp * 2);
                 
                 if (!task.completed) {
-                    // --- 完成任務 ---
+                    // 完成
                     setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
-                    
-                    // 紀錄 Log
                     setHistory(prev => [{ 
                         logId: Date.now(), 
-                        taskId: task.id, // 增加 taskId 以便反悔時查找
+                        taskId: task.id, 
                         title: task.title, 
                         category: task.category, 
                         xp: task.xp, 
+                        money: taskMoney, 
                         completedAt: new Date().toISOString() 
                     }, ...prev]);
-                    
-                    // 增加 XP (正數)
-                    updateXP(task.xp, task.category);
-                    showNotification("任務完成！", "success");
+                    updateUserStatus(task.xp, task.category, taskMoney);
+                    showNotification(`完成！獲得 ${task.xp} XP, $${taskMoney} Z`, "success");
 
-                    // 轉職檢查
                     const jobKeywords = ["技師", "執照", "License", "轉職", "Job Change", "工程師"];
                     if (jobKeywords.some(keyword => task.title.includes(keyword))) {
-                        setTimeout(() => {
-                            setNewJobTitle(""); 
-                            setJobChangeData(task.title); 
-                        }, 800); 
+                        setTimeout(() => { setNewJobTitle(""); setJobChangeData(task.title); }, 800); 
                     }
                 } else {
-                    // --- 取消完成 (Undo) ---
+                    // Undo
                     setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: false } : t));
-                    
-                    // 移除最近的一筆紀錄
                     setHistory(prev => {
-                        // 找到該任務最新的紀錄 index
                         const index = prev.findIndex(h => h.taskId === task.id || h.title === task.title);
                         if (index > -1) {
                             const newHistory = [...prev];
-                            newHistory.splice(index, 1); // 移除該筆
+                            newHistory.splice(index, 1);
                             return newHistory;
                         }
                         return prev;
                     });
-
-                    // 扣除 XP (負數)
-                    updateXP(-task.xp, task.category);
-                    showNotification("已復原 (XP收回)", "info");
+                    updateUserStatus(-task.xp, task.category, -taskMoney);
+                    showNotification("已復原 (回收 XP & Zeny)", "info");
                 }
+            };
+
+            // 兌換獎勵 (支援 Zeny 和 Stamina)
+            const handleRedeemReward = (reward) => {
+                const cost = reward.cost || 0;
+                const currency = reward.currency || 'zeny';
+
+                if (currency === 'zeny') {
+                    if (user.zeny < cost) {
+                        showNotification("Zeny 不足！請多接點任務！", "error");
+                        return;
+                    }
+                    updateUserStatus(0, "general", -cost);
+                    showNotification(`已兌換 ${reward.title} (-$${cost} Z)`, "gold");
+                } 
+                else if (currency === 'stamina') {
+                    // Stamina Logic
+                    if ((user.stamina?.current || 0) < cost) {
+                        if(window.confirm(`精力不足 (${Math.floor(user.stamina?.current || 0)}/${cost})！要強制透支嗎？\n(警告：將扣除 $5000 Zeny 作為懲罰)`)) {
+                            // 強制透支邏輯
+                            if (user.zeny < 5000) {
+                                showNotification("Zeny 不足支付懲罰金，無法透支！", "error");
+                                return;
+                            }
+                            setUser(prev => ({
+                                ...prev,
+                                zeny: prev.zeny - 5000,
+                                stamina: { ...prev.stamina, current: 0 } // 精力歸零
+                            }));
+                            showNotification("強制釋放... 精力歸零, 扣除 $5000 Zeny", "error");
+                        } else {
+                            return;
+                        }
+                    } else {
+                        // 正常扣除
+                        setUser(prev => ({
+                            ...prev,
+                            stamina: { ...prev.stamina, current: prev.stamina.current - cost }
+                        }));
+                        showNotification(`聖人模式啟動 (-${cost} STA)`, "success");
+                    }
+                }
+                
+                setHistory(prev => [{ 
+                    logId: Date.now(), 
+                    title: `兌換: ${reward.title}`, 
+                    category: "general", 
+                    xp: 0, 
+                    money: currency === 'zeny' ? -cost : 0,
+                    isReward: true,
+                    completedAt: new Date().toISOString() 
+                }, ...prev]);
             };
 
             const confirmJobChange = () => {
@@ -411,42 +480,38 @@
                 showNotification(`轉職成功！職業變更為：${newJobTitle}`, "gold");
             };
 
-            // 統一的 XP 更新函式 (支援增加與減少)
-            const updateXP = (amount, categoryKey) => {
+            // 統一的狀態更新函式
+            const updateUserStatus = (xpAmount, categoryKey, moneyAmount) => {
                 const category = categories[categoryKey] || categories.general;
                 const type = category.type;
                 
                 setUser(prev => {
                     let currentStats = { ...prev[type] };
-                    let newXP = currentStats.xp + amount;
+                    let newXP = currentStats.xp + xpAmount;
                     let newLevel = currentStats.level;
                     let newMaxXp = currentStats.maxXp;
+                    let newZeny = Math.max(0, (prev.zeny || 0) + moneyAmount); 
                     
                     let leveledUp = false;
-                    let totalCompletedChange = amount > 0 ? 1 : -1;
+                    let totalCompletedChange = xpAmount > 0 ? 1 : -1;
+                    if (xpAmount === 0) totalCompletedChange = 0;
 
-                    // 升級邏輯
-                    if (amount > 0) {
+                    if (xpAmount > 0) {
                         while (newXP >= newMaxXp) {
                             newXP -= newMaxXp;
                             newLevel++;
-                            // 計算新等級的 MaxXP (這裡簡化使用 1.2 倍率，或使用 helper)
                             newMaxXp = Math.floor(newMaxXp * 1.2);
                             leveledUp = true;
                         }
                     } 
-                    // 降級邏輯 (反悔時可能發生)
-                    else {
+                    else if (xpAmount < 0) {
                         while (newXP < 0) {
                             if (newLevel > 1) {
                                 newLevel--;
-                                // 反推上一級的 MaxXP
-                                // newMaxXp = prevMaxXp * 1.2 => prevMaxXp = newMaxXp / 1.2
-                                // 為了精確，最好重新計算該等級的 MaxXP
                                 newMaxXp = calculateMaxXP(newLevel);
-                                newXP += newMaxXp; // 補回上一級的經驗值
+                                newXP += newMaxXp; 
                             } else {
-                                newXP = 0; // 等級 1 不會再降，經驗歸零
+                                newXP = 0; 
                                 break; 
                             }
                         }
@@ -456,6 +521,7 @@
                     
                     return { 
                         ...prev, 
+                        zeny: newZeny,
                         [type]: { level: newLevel, xp: newXP, maxXp: newMaxXp }, 
                         totalTasksCompleted: Math.max(0, prev.totalTasksCompleted + totalCompletedChange) 
                     };
@@ -469,22 +535,40 @@
             const handleAddTask = (e) => {
                 e.preventDefault();
                 if (!newTask.title.trim()) return;
-                setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), repeat: newTask.repeat, completed: false }]);
+                // Hardcore Mode Money = XP * 2
+                const moneyVal = parseInt(newTask.xp) * 2;
+                setTasks([...tasks, { 
+                    id: Date.now(), 
+                    title: newTask.title, 
+                    category: newTask.category, 
+                    xp: parseInt(newTask.xp), 
+                    money: moneyVal,
+                    repeat: newTask.repeat, 
+                    completed: false 
+                }]);
                 setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
                 showNotification("新增成功", "success");
             };
             const handleAddReward = (e) => {
                 e.preventDefault();
                 if (!newReward.title.trim()) return;
-                setRewards([...rewards, { id: Date.now(), title: newReward.title, reqType: newReward.reqType, levelReq: parseInt(newReward.levelReq), unlocked: false }]);
-                setNewReward(prev => ({ ...prev, title: '' }));
+                setRewards([...rewards, { 
+                    id: Date.now(), 
+                    title: newReward.title, 
+                    reqType: newReward.reqType, 
+                    levelReq: parseInt(newReward.levelReq), 
+                    cost: parseInt(newReward.cost || 0),
+                    currency: newReward.currency || 'zeny',
+                    unlocked: false 
+                }]);
+                setNewReward(prev => ({ ...prev, title: '', cost: 100, currency: 'zeny' })); 
                 showNotification("新增獎勵", "success");
             };
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); showNotification("紀錄已清除", "info"); setShowSettings(false); } };
 
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, version: "1.6" };
+                const data = { user, tasks, rewards, history, appState, version: "2.3" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -503,7 +587,12 @@
                 reader.onload = (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        if(data.user) setUser({...data.user, name: data.user.name || "Player", jobTitle: data.user.jobTitle || "工程師"});
+                        if(data.user) setUser({...data.user, 
+                            name: data.user.name || "Player", 
+                            jobTitle: data.user.jobTitle || "工程師", 
+                            zeny: data.user.zeny || 0,
+                            stamina: data.user.stamina || { current: 100, max: 100 }
+                        });
                         if(data.tasks) setTasks(data.tasks);
                         if(data.rewards) setRewards(data.rewards);
                         if(data.history) setHistory(data.history);
@@ -517,41 +606,45 @@
                 reader.readAsText(file);
             };
 
-            // --- 匯入包邏輯 (移除 window.confirm) ---
+            // --- 匯入包邏輯 ---
 
             const handleImportStarterPack = () => {
                 mergePack([
-                    { id: 1001, title: "遛狗", category: "fitness", xp: 30, repeat: 'daily' }, { id: 1002, title: "運動", category: "fitness", xp: 50, repeat: 'daily' },
-                    { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, repeat: 'daily' }
+                    { id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, 
+                    { id: 1002, title: "運動", category: "fitness", xp: 50, money: 100, repeat: 'daily' },
+                    { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, 
+                    { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }
                 ], "新手包");
             };
 
             const handleImportEngineerPack = () => {
                 mergePack([
-                    { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, repeat: 'daily' },
-                    { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, repeat: 'weekly' }
+                    { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, 
+                    { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, 
+                    { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }
                 ], "環工包");
             };
 
             const handleImportUpgradePack = () => {
                 mergePack([
-                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, repeat: 'none' },
-                    { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, repeat: 'weekly' },
-                    { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, repeat: 'weekly' },
-                    { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, repeat: 'weekly' },
-                    { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, repeat: 'daily' },
-                    { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, repeat: 'weekly' },
-                    { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, repeat: 'weekly' },
-                    { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, repeat: 'daily' },
-                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, repeat: 'weekly' },
-                    { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, repeat: 'weekly' },
-                    { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, repeat: 'weekly' }
+                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' },
+                    { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' },
+                    { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' },
+                    { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' },
+                    { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' },
+                    { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' },
+                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
+                    { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
                 ], "升級包");
             };
 
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
-                const newT = pack.filter(n => !currentTasks.some(e => e.title && e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
+                const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), completed: false}));
                 
                 if (newT.length === 0) { 
                     showNotification("任務已存在，無需重複匯入", "info"); 
@@ -561,15 +654,19 @@
                 showNotification(`成功匯入 ${name} (${newT.length} 個新任務)`, "success");
             }
 
+            // --- 獎勵匯入邏輯 (移除指定項目) ---
+
             const handleImportRewardPack = () => {
                 const rewardPack = [
-                    { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, unlocked: false },
-                    { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, unlocked: false },
-                    { id: 4004, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, unlocked: false },
-                    { id: 4005, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, unlocked: false },
-                    { id: 4006, title: "Steam/遊戲課金 (NT$500內)", reqType: 'job', levelReq: 4, unlocked: false },
-                    { id: 4007, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, unlocked: false },
-                    { id: 4009, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, unlocked: false },
+                    { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny', unlocked: false },
+                    { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny', unlocked: false },
+                    { id: 4004, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
+                    { id: 4005, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', unlocked: false },
+                    { id: 4006, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny', unlocked: false },
+                    { id: 4007, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', unlocked: false },
+                    { id: 4009, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', unlocked: false },
+                    { id: 4010, title: "新家軟裝小物 ($1000內)", reqType: 'job', levelReq: 6, cost: 5000, currency: 'zeny', unlocked: false },
+                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true }
                 ];
 
                 const currentRewards = Array.isArray(rewards) ? rewards : [];
@@ -580,7 +677,7 @@
                     return;
                 }
                 setRewards(p => [...p, ...newR]);
-                showNotification(`成功匯入獎勵包 (${newR.length} 個新獎勵)`, "success");
+                showNotification(`成功匯入獎勵包`, "success");
             };
 
             const getHistoryByDate = () => {
@@ -612,9 +709,16 @@
                                         Basic Information
                                     </h1>
                                 </div>
-                                <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-blue-600">
-                                    <Settings size={16} />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {/* Zeny Display */}
+                                    <div className="bg-white/80 border border-slate-400 rounded px-2 py-0.5 text-xs font-pixel flex items-center gap-1">
+                                        <span className="text-yellow-600 font-bold">Z</span>
+                                        <span>{user.zeny || 0}</span>
+                                    </div>
+                                    <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-blue-600">
+                                        <Settings size={16} />
+                                    </button>
+                                </div>
                             </div>
                             
                             <div className="flex justify-between items-end px-1">
@@ -641,6 +745,13 @@
                                 <ProgressBar current={user.job.xp} max={user.job.maxXp} height="h-3" />
                                 <span className="text-xs font-bold w-8 text-right font-pixel">{user.job.level}</span>
                             </div>
+
+                            {/* Stamina Bar */}
+                             <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-emerald-700 w-14 shrink-0">STA</span>
+                                <ProgressBar current={user.stamina?.current || 0} max={user.stamina?.max || 100} height="h-3" type="stamina" />
+                                <span className="text-xs font-bold w-8 text-right font-pixel">{Math.floor(user.stamina?.current || 0)}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -652,7 +763,7 @@
                                 <CheckCircle2 size={14} /> 任務
                             </button>
                             <button onClick={() => setActiveTab('rewards')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'rewards' ? 'bg-amber-200 text-amber-900 border-amber-400' : 'bg-white text-slate-600 border-slate-300'}`}>
-                                <Trophy size={14} /> 獎勵
+                                <ShoppingBag size={14} /> 商店
                             </button>
                             <button onClick={() => setActiveTab('history')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'history' ? 'bg-teal-200 text-teal-900 border-teal-400' : 'bg-white text-slate-600 border-slate-300'}`}>
                                 <Calendar size={14} /> 紀錄
@@ -682,29 +793,29 @@
                                         </div>
                                         <div className="flex gap-2">
                                              <select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}>
-                                                <option value="10">10 XP</option>
-                                                <option value="20">20 XP</option>
-                                                <option value="30">30 XP</option>
-                                                <option value="50">50 XP</option>
+                                                <option value="10">10 XP ($20Z)</option>
+                                                <option value="20">20 XP ($40Z)</option>
+                                                <option value="30">30 XP ($60Z)</option>
+                                                <option value="50">50 XP ($100Z)</option>
                                             </select>
                                             <Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button>
                                         </div>
                                     </div>
                                 </Card>
 
-                                {/* Quick Import Buttons */}
                                 <div className="flex flex-wrap justify-end gap-2">
                                     <button onClick={handleImportUpgradePack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-yellow-300 border border-slate-600 hover:bg-slate-600"><Sparkles size={12} /> 升級包</button>
                                     <button onClick={handleImportEngineerPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-cyan-300 border border-slate-600 hover:bg-slate-600"><HardHat size={12} /> 環工包</button>
                                     <button onClick={handleImportStarterPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-indigo-300 border border-slate-600 hover:bg-slate-600"><Download size={12} /> 新手包</button>
                                 </div>
 
-                                {/* Task List */}
                                 <div className="space-y-2">
                                     {filteredTasks.length === 0 && <div className="text-center py-8 text-slate-400 text-xs">無任務</div>}
                                     {filteredTasks.sort((a,b) => (a.completed === b.completed) ? 0 : a.completed ? 1 : -1).map((task) => {
                                         const cat = categories[task.category] || categories.general;
                                         const xpType = cat.type === 'base' ? 'Base' : 'Job';
+                                        // 顯示 Zeny 獎勵 (如果有的話)
+                                        const moneyReward = task.money || (task.xp * 2);
                                         return (
                                             <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${task.completed ? 'opacity-60 bg-gray-200' : 'bg-white'}`}>
                                                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -718,6 +829,7 @@
                                                         <div className="flex items-center gap-2 mb-0.5">
                                                             <span className={`text-[9px] px-1 rounded border ${cat.bg} flex items-center gap-1`}>{cat.icon} {cat.label}</span>
                                                             <span className="text-[10px] font-pixel text-slate-500">+{task.xp} {xpType}</span>
+                                                            <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${moneyReward} Z</span>
                                                         </div>
                                                         <h3 className={`font-bold text-sm truncate ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</h3>
                                                     </div>
@@ -730,41 +842,74 @@
                             </div>
                         )}
 
-                        {/* Rewards Tab */}
+                        {/* Rewards Tab (Shop Style) */}
                         {activeTab === 'rewards' && (
                             <div className="space-y-4 animate-slide-in">
-                                <Card title="Kafra Shop">
+                                <Card title="Item Shop">
                                     <div className="flex flex-col gap-2">
-                                        <input type="text" placeholder="獎勵名稱..." className="w-full px-2 py-1.5" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
-                                        <div className="grid grid-cols-3 gap-2">
+                                        <input type="text" placeholder="商品名稱..." className="w-full px-2 py-1.5" value={newReward.title} onChange={(e) => setNewReward({...newReward, title: e.target.value})} />
+                                        <div className="grid grid-cols-2 gap-2">
                                             <select className="col-span-1 px-1 py-1.5 text-xs" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}>
-                                                <option value="base">Base Lv</option>
-                                                <option value="job">Job Lv</option>
+                                                <option value="base">Req: Base Lv</option>
+                                                <option value="job">Req: Job Lv</option>
                                             </select>
-                                            <input type="number" placeholder="Lv" className="col-span-1 px-2 py-1.5" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
-                                            <Button variant="primary" onClick={handleAddReward} className="text-xs"><Plus size={14} /></Button>
+                                            <input type="number" placeholder="等級需求" className="col-span-1 px-2 py-1.5" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input type="number" placeholder="價格 ($Z)" className="flex-1 px-2 py-1.5" value={newReward.cost || ''} onChange={(e) => setNewReward({...newReward, cost: e.target.value})} />
+                                            <select className="w-20 px-1 py-1.5 text-xs" value={newReward.currency} onChange={(e) => setNewReward({...newReward, currency: e.target.value})}>
+                                                <option value="zeny">Zeny</option>
+                                                <option value="stamina">STA</option>
+                                            </select>
+                                            <Button variant="primary" onClick={handleAddReward} className="text-xs"><Plus size={14} /> 上架</Button>
                                         </div>
                                     </div>
                                 </Card>
 
-                                {/* Import Rewards Button */}
                                 <div className="flex justify-end">
                                     <button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-2">
-                                    {rewards.sort((a,b) => a.levelReq - b.levelReq).map((reward) => {
+                                    {rewards.sort((a,b) => {
+                                        // 排序邏輯：Zeny 在前，Stamina 在後，然後按價格排序
+                                        if (a.currency === b.currency) return (a.cost || 0) - (b.cost || 0);
+                                        return a.currency === 'stamina' ? 1 : -1;
+                                    }).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
+                                        const cost = reward.cost || 0;
+                                        const currency = reward.currency || 'zeny';
+                                        const canAfford = currency === 'zeny' ? (user.zeny || 0) >= cost : (user.stamina?.current || 0) >= cost;
+                                        
                                         return (
-                                            <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-green-50 border-green-200' : 'bg-gray-100 opacity-80'}`}>
+                                            <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-white' : 'bg-gray-200 opacity-80'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`p-1.5 rounded ${isUnlocked ? 'text-green-600 bg-green-100' : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <Unlock size={16} /> : <Lock size={16} />}</div>
+                                                    <div className={`p-1.5 rounded ${isUnlocked ? (currency === 'stamina' ? 'text-emerald-600 bg-emerald-100' : 'text-blue-600 bg-blue-100') : 'text-slate-400 bg-slate-200'}`}>
+                                                        {isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}
+                                                    </div>
                                                     <div>
                                                         <h3 className="font-bold text-sm text-slate-700">{reward.title}</h3>
-                                                        <p className="text-[10px] text-slate-500">{isUnlocked ? 'Unlocked' : `Req: ${reward.reqType === 'base' ? 'Base' : 'Job'} Lv.${reward.levelReq}`}</p>
+                                                        <div className="flex items-center gap-2 text-[10px]">
+                                                            <span className={`font-pixel ${isUnlocked ? (canAfford ? (currency === 'stamina' ? 'text-emerald-600 font-bold' : 'text-yellow-600 font-bold') : 'text-red-500') : 'text-slate-400'}`}>
+                                                                {currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}
+                                                            </span>
+                                                            {!isUnlocked && <span className="text-red-400">Req: Lv.{reward.levelReq}</span>}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                                                
+                                                {isUnlocked ? (
+                                                    <Button 
+                                                        onClick={() => handleRedeemReward(reward)} 
+                                                        variant={canAfford ? (currency === 'stamina' ? "primary" : "green") : "outline"} 
+                                                        disabled={!canAfford && currency === 'zeny'} // STA 允許透支確認
+                                                        className="text-xs py-1 px-2"
+                                                    >
+                                                        購買
+                                                    </Button>
+                                                ) : (
+                                                    <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -783,13 +928,16 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border border-slate-400 transform -translate-x-1/2 z-10"></div>
-                                                <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
-                                                <div className="space-y-1.5">
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="mb-2"><span className="text-xs font-bold text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded">{date}</span></div>
+                                                <div className="space-y-2">
                                                     {entries.map(entry => (
-                                                        <div key={entry.logId} className="bg-white/90 border border-slate-300 p-2 rounded flex items-center justify-between shadow-sm">
-                                                            <span className="text-xs text-slate-700 truncate pr-2">{entry.title}</span>
-                                                            <span className="text-[10px] font-bold text-blue-600 shrink-0">+{entry.xp} XP</span>
+                                                        <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between shadow-sm">
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                <div className={`w-2 h-2 shrink-0 rounded-full ${(categories[entry.category] || categories.general).bg}`}></div>
+                                                                <span className="text-sm text-slate-200 truncate">{entry.title}</span>
+                                                            </div>
+                                                            <span className="text-xs text-indigo-400 shrink-0">+{entry.xp} XP</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -843,11 +991,11 @@
                     <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="LEVEL UP!">
                         <div className="text-center space-y-4 py-4">
                             <div className="mx-auto h-20 w-20 rounded-full bg-yellow-100 flex items-center justify-center animate-bounce text-yellow-600 border-4 border-yellow-200">
-                                <img src="https://api.iconify.design/mdi:wings.svg?color=goldenrod" className="w-12 h-12" alt="wings" />
+                                <img src="[https://api.iconify.design/mdi:wings.svg?color=goldenrod](https://api.iconify.design/mdi:wings.svg?color=goldenrod)" className="w-12 h-12" alt="wings" />
                             </div>
                             <div>
                                 <h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2>
-                                <p className="text-sm text-slate-600 mt-1">Congratulations!</p>
+                                <p className="text-sm text-slate-300 mt-1">Congratulations!</p>
                             </div>
                             <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button>
                         </div>
