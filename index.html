@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Auto Cycle</title>
+    <title>LifeRPG - Smart Sorting</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -326,7 +326,6 @@
                 ];
             });
 
-            // NEW: Daily Completions Map { "2023-10-27": [taskId1, taskId2] }
             const [dailyCompletions, setDailyCompletions] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-daily-completions');
                 return saved ? JSON.parse(saved) : {};
@@ -352,20 +351,18 @@
             const [jobChangeData, setJobChangeData] = React.useState(null); 
             const [notification, setNotification] = React.useState(null); 
             const [showSettings, setShowSettings] = React.useState(false);
-            const [showCalendar, setShowCalendar] = React.useState(false); // Calendar Modal
+            const [showCalendar, setShowCalendar] = React.useState(false); 
 
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
-            // Date Management
             const getISODate = (d) => d.toISOString().split('T')[0];
-            const [viewDate, setViewDate] = React.useState(new Date()); // Current Date being viewed
+            const [viewDate, setViewDate] = React.useState(new Date()); 
             const viewDateStr = getISODate(viewDate);
             const todayStr = getISODate(new Date());
             const isToday = viewDateStr === todayStr;
             
-            // Fix: Define todayDate for display
             const todayDate = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
              const categories = {
@@ -381,7 +378,6 @@
                 setTimeout(() => setNotification(null), 3000);
             };
 
-            // Effects
             React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); }, [user]);
             React.useEffect(() => { localStorage.setItem('liferpg-tasks', JSON.stringify(tasks)); }, [tasks]);
             React.useEffect(() => { localStorage.setItem('liferpg-rewards-v2', JSON.stringify(rewards)); }, [rewards]);
@@ -389,46 +385,7 @@
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
             React.useEffect(() => { localStorage.setItem('liferpg-daily-completions', JSON.stringify(dailyCompletions)); }, [dailyCompletions]);
 
-            // 自動遷移舊資料：確保「健身/運動」有 STA 獎勵，並確保獎勵有正確價格
             React.useEffect(() => {
-                // Task Migration
-                setTasks(prevTasks => prevTasks.map(t => {
-                    if ((t.title === "健身/運動" || t.title === "運動") && !t.stamina) {
-                        return { ...t, stamina: 34 };
-                    }
-                    return t;
-                }));
-
-                // Reward Migration (Fix 0 cost issue)
-                setRewards(prevRewards => prevRewards.map(r => {
-                    // 如果已經有合理價格(大於0)，或是不需要費用的(0元)，暫且不動。
-                    // 但如果是舊資料導致 undefined 或 0，且需要價格的，則補上。
-                    // 這裡為了保險起見，針對特定關鍵字強制更新價格
-                    let newCost = r.cost;
-                    let newCurrency = r.currency || 'zeny';
-
-                    if (!newCost || newCost === 0) {
-                        if (r.title.includes("放縱餐")) newCost = 600;
-                        else if (r.title.includes("買新遊戲")) newCost = 3000;
-                        else if (r.title.includes("聖人模式")) { newCost = 100; newCurrency = 'stamina'; }
-                        else if (r.title.includes("打電動")) newCost = 150;
-                        else if (r.title.includes("手搖飲")) newCost = 80;
-                        else if (r.title.includes("睡到自然醒")) newCost = 200;
-                        else if (r.title.includes("平價內褲")) newCost = 800;
-                        else if (r.title.includes("專櫃")) newCost = 3500;
-                        else if (r.title.includes("奢華")) newCost = 6000;
-                        else if (r.title.includes("軟裝")) newCost = 5000;
-                        else newCost = 100; // Default
-                    }
-                    
-                    return { ...r, cost: newCost, currency: newCurrency };
-                }));
-            }, []);
-
-
-            // Migration & Daily Logic
-            React.useEffect(() => {
-                // Migrate legacy "task.completed" to "dailyCompletions"
                 const legacyCompleted = tasks.filter(t => t.completed).map(t => t.id);
                 if (legacyCompleted.length > 0) {
                     setDailyCompletions(prev => {
@@ -436,9 +393,16 @@
                         const merged = [...new Set([...todayLog, ...legacyCompleted])];
                         return { ...prev, [todayStr]: merged };
                     });
-                    // Reset legacy flag
                     setTasks(prev => prev.map(t => ({ ...t, completed: false })));
                 }
+
+                setTasks(prev => {
+                    const hasFitness = prev.some(t => t.title === "健身/運動");
+                    if (hasFitness) {
+                        return prev.filter(t => t.title !== "運動");
+                    }
+                    return prev;
+                });
 
                 const today = new Date();
                 const todayString = today.toDateString();
@@ -447,16 +411,13 @@
                 let updatedTasks = [...tasks];
                 let tasksChanged = false;
 
-                // Auto-Reset Logic (Daily/Weekly/Custom)
                 if (appState.lastVisitDate !== todayString) {
                     updatedTasks = updatedTasks.map(t => {
-                        // 每日任務: 每天重置
                         if (t.repeat === 'daily' && t.completed) { 
                             tasksChanged = true; 
                             return { ...t, completed: false }; 
                         }
                         
-                        // 自定義任務: 檢查是否到期
                         if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
                              const lastCompDate = new Date(t.lastCompleted);
                              const diffTime = Math.abs(today - lastCompDate);
@@ -470,7 +431,6 @@
                         return t;
                     });
 
-                    // *** Stamina Daily Regen: 每天 +34 ***
                     setUser(prev => ({
                         ...prev,
                         stamina: {
@@ -482,7 +442,6 @@
                     showNotification("新的一天！精力恢復 +34", "info");
                 }
 
-                // 每週任務重置
                 if (appState.lastVisitWeek !== currentWeek) {
                     updatedTasks = updatedTasks.map(t => {
                         if (t.repeat === 'weekly' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
@@ -494,8 +453,6 @@
                 setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
             }, []);
 
-            // --- 核心邏輯：基於日期的任務切換 ---
-
             const handleToggleTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
                 const taskMoney = task.money !== undefined ? task.money : (task.xp * 2); 
@@ -504,21 +461,15 @@
                 const completedList = dailyCompletions[viewDateStr] || [];
                 const isCompleted = completedList.includes(taskId);
                 
-                // Check if task is "checked" in the persistent sense (for custom reset)
-                const isPersistentCompleted = task.completed;
-
                 if (!isCompleted) {
-                    // 完成任務
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    // Update persistent state for auto-reset
                     const nowISO = new Date().toISOString();
                     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
                     
-                    // Log
                     setHistory(prev => [{ 
                         logId: Date.now(), 
                         taskId: task.id, 
@@ -537,13 +488,11 @@
                     if (taskStamina > 0) notifMsg += `, +${taskStamina} STA`;
                     showNotification(notifMsg, "success");
 
-                    // 轉職檢查
                     const jobKeywords = ["技師", "執照", "License", "轉職", "Job Change", "工程師"];
                     if (jobKeywords.some(keyword => task.title.includes(keyword))) {
                         setTimeout(() => { setNewJobTitle(""); setJobChangeData(task.title); }, 800); 
                     }
                 } else {
-                    // Undo
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: prev[viewDateStr].filter(id => id !== taskId)
@@ -552,7 +501,7 @@
                     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: false } : t));
 
                     setHistory(prev => {
-                        const index = prev.findIndex(h => (h.taskId === task.id || h.title === task.title) && h.date === viewDateStr); // Only remove log for THAT date
+                        const index = prev.findIndex(h => (h.taskId === task.id || h.title === task.title) && h.date === viewDateStr);
                         if (index > -1) {
                             const newHistory = [...prev];
                             newHistory.splice(index, 1);
@@ -576,7 +525,6 @@
                 setViewDate(new Date());
             };
 
-            // ... (Reward & Job Logic remain same) ...
             const handleRedeemReward = (reward) => {
                 const cost = reward.cost || 0;
                 const currency = reward.currency || 'zeny';
@@ -637,7 +585,6 @@
                 });
             };
 
-            // ... (Reset, Delete, Add Task Logic remain same) ...
             const handleManualReset = () => { if(window.confirm("重置每日任務？")) { setDailyCompletions({}); showNotification("已重置", "info"); setShowSettings(false); } };
             const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("已刪除", "error"); };
             const handleAddTask = (e) => {
@@ -645,9 +592,7 @@
                 if (!newTask.title.trim()) return;
                 const moneyVal = parseInt(newTask.xp) * 2;
                 const frequencyVal = parseInt(newTask.frequency) || 1;
-                setTasks([...tasks, { 
-                    id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat, frequency: frequencyVal 
-                }]);
+                setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat, frequency: frequencyVal }]);
                 setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
                 showNotification("新增成功", "success");
             };
@@ -661,9 +606,8 @@
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); setDailyCompletions({}); showNotification("已清除", "info"); setShowSettings(false); } };
 
-            // Import/Export
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "3.3" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "3.5" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -694,7 +638,6 @@
                 reader.readAsText(file);
             };
 
-            // Import Packs
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
                 const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random()}));
@@ -702,25 +645,17 @@
                 setTasks(p => [...p, ...newT]);
                 showNotification(`已匯入 ${name}`, "success");
             }
-            const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }], "新手包");
+            const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }], "新手包");
             const handleImportEngineerPack = () => mergePack([{ id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' }, { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }], "環工包");
             const handleImportUpgradePack = () => {
                 mergePack([
-                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' },
-                    { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
-                    { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
-                    { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' },
-                    { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' },
-                    { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' },
-                    { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' },
-                    { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' },
-                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
-                    { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
-                    { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
-                    // New tasks
-                    { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
-                    { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
-                    { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }
+                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' }, { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' }, { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' }, { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3014, title: "打掃浴室", category: "chores", xp: 30, money: 60, repeat: 'weekly' },
+                    { id: 3015, title: "澆花", category: "chores", xp: 10, money: 20, repeat: 'custom', frequency: 3 },
+                    { id: 3016, title: "假日8點起床", category: "fitness", xp: 50, money: 100, repeat: 'weekend' },
+                    { id: 3017, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
+                    { id: 3018, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
+                    { id: 3019, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }
                 ], "升級包");
             };
 
@@ -743,11 +678,99 @@
                 return groups;
             };
 
-            const filteredTasks = tasks.filter(task => {
-                if (questFilter === 'all') return true;
+            // Render Lists Logic (Refactored)
+            const renderTaskSection = (taskList, title) => {
+                if (taskList.length === 0) return null;
+                
+                // Group by Category inside section
+                const grouped = { fitness: [], chores: [], knowledge: [], finance: [], general: [] };
+                taskList.forEach(t => {
+                   if (grouped[t.category]) grouped[t.category].push(t);
+                   else grouped.general.push(t);
+                });
+
+                return (
+                    <div className="mb-4 animate-slide-in">
+                         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-700 pb-1">{title}</h3>
+                         <div className="space-y-2">
+                            {Object.entries(grouped).map(([key, list]) => {
+                                if (list.length === 0) return null;
+                                return list.map(task => renderTaskItem(task));
+                            })}
+                         </div>
+                    </div>
+                );
+            };
+
+            const renderTaskItem = (task) => {
                 const cat = categories[task.category] || categories.general;
-                return cat.type === questFilter;
-            });
+                const xpType = cat.type === 'base' ? 'Base' : 'Job';
+                const moneyReward = task.money || (task.xp * 2);
+                const isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
+                let repeatLabel = "";
+                if (task.repeat === 'custom' && task.frequency) repeatLabel = `每${task.frequency}天`;
+                if (task.repeat === 'weekend') repeatLabel = `週末`;
+                if (task.repeat === 'weekly') repeatLabel = `每週`;
+                
+                return (
+                    <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${isCompleted ? 'opacity-50 bg-gray-300 border-gray-400' : 'bg-white'}`}>
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                             <button onClick={() => handleToggleTask(task.id)} className={`shrink-0 h-6 w-6 rounded shadow-sm flex items-center justify-center border transition-all active:scale-95 ${isCompleted ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400'}`}>
+                                {isCompleted && <CheckCircle2 size={14} />}
+                            </button>
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <span className={`text-[9px] px-1 rounded border ${cat.bg} flex items-center gap-1`}>{cat.icon} {cat.label}</span>
+                                    <span className="text-[10px] font-pixel text-slate-500">+{task.xp} {xpType}</span>
+                                    <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${moneyReward} Z</span>
+                                    {task.stamina > 0 && <span className="text-[10px] font-pixel text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">+{task.stamina} STA</span>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-500' : 'text-slate-800'}`}>{task.title}</h3>
+                                    {repeatLabel && <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded border border-slate-200">{repeatLabel}</span>}
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={() => handleDeleteTask(task.id)} className="ml-2 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                    </div>
+                );
+            };
+
+            // Filter Logic updated for rendering
+            const getFilteredTaskLists = () => {
+                // 1. Global Filter (Category)
+                let baseList = tasks.filter(task => {
+                     const cat = categories[task.category] || categories.general;
+                     if (questFilter !== 'all' && cat.type !== questFilter) return false;
+                     
+                     // Hide Weekend tasks on Weekdays
+                     const viewDay = viewDate.getDay();
+                     const isWeekendView = viewDay === 0 || viewDay === 6;
+                     if (task.repeat === 'weekend' && !isWeekendView) return false;
+                     
+                     // Hide Custom Cycle tasks that are done and not due yet (Optional, but user asked for clarity)
+                     // Logic: If custom task completed recently, maybe hide it from "Priority"? 
+                     // Actually user said "show if due".
+                     // Current logic: if completed -> shows in completed. if uncompleted -> shows in active.
+                     // The auto-reset logic handles the "unchecking". So if it's unchecked, it's due.
+                     
+                     return true;
+                });
+
+                const completedIds = dailyCompletions[viewDateStr] || [];
+
+                // 2. Split into Completed and Active
+                const activeList = baseList.filter(t => !completedIds.includes(t.id));
+                const completedList = baseList.filter(t => completedIds.includes(t.id));
+
+                // 3. Split Active into Priority (Periodic) vs Daily
+                const priorityList = activeList.filter(t => t.repeat !== 'daily');
+                const dailyList = activeList.filter(t => t.repeat === 'daily');
+
+                return { priorityList, dailyList, completedList };
+            };
+
+            const { priorityList, dailyList, completedList } = getFilteredTaskLists();
 
             // Calendar Renderer
             const renderCalendar = () => {
@@ -756,24 +779,12 @@
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const firstDay = new Date(year, month, 1).getDay();
                 const days = [];
-                
-                // Padding
                 for (let i = 0; i < firstDay; i++) days.push(<div key={`pad-${i}`} />);
-                
-                // Days
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const isSelected = dateStr === viewDateStr;
                     const hasData = dailyCompletions[dateStr] && dailyCompletions[dateStr].length > 0;
-                    days.push(
-                        <button 
-                            key={i} 
-                            onClick={() => { setViewDate(new Date(dateStr)); setShowCalendar(false); }}
-                            className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}
-                        >
-                            {i}
-                        </button>
-                    );
+                    days.push(<button key={i} onClick={() => { setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
                 }
                 return days;
             };
@@ -787,25 +798,15 @@
                         <div className="ro-window p-3 space-y-2 max-w-lg mx-auto">
                             <div className="flex items-start justify-between border-b border-slate-300 pb-1 mb-1">
                                 <div className="flex flex-col">
-                                    <h1 className="text-base font-bold text-blue-900 flex items-center gap-2">
-                                        Basic Information
-                                    </h1>
+                                    <h1 className="text-base font-bold text-blue-900 flex items-center gap-2">Basic Information</h1>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="bg-white/80 border border-slate-400 rounded px-2 py-0.5 text-xs font-pixel flex items-center gap-1">
-                                        <span className="text-yellow-600 font-bold">Z</span>
-                                        <span>{user.zeny || 0}</span>
-                                    </div>
-                                    <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-blue-600">
-                                        <Settings size={16} />
-                                    </button>
+                                    <div className="bg-white/80 border border-slate-400 rounded px-2 py-0.5 text-xs font-pixel flex items-center gap-1"><span className="text-yellow-600 font-bold">Z</span><span>{user.zeny || 0}</span></div>
+                                    <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-blue-600"><Settings size={16} /></button>
                                 </div>
                             </div>
                             <div className="flex justify-between items-end px-1">
-                                <div>
-                                    <div className="text-sm font-bold text-slate-800">{user.name}</div>
-                                    <div className="text-xs font-bold text-blue-700 flex items-center gap-1"><Crown size={12} className="text-yellow-500" /> {user.jobTitle}</div>
-                                </div>
+                                <div><div className="text-sm font-bold text-slate-800">{user.name}</div><div className="text-xs font-bold text-blue-700 flex items-center gap-1"><Crown size={12} className="text-yellow-500" /> {user.jobTitle}</div></div>
                                 <div className="text-[10px] text-slate-500 font-pixel text-right">{todayDate}</div>
                             </div>
                             <div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-700 w-14 shrink-0">Base Lv.</span><ProgressBar current={user.base.xp} max={user.base.maxXp} height="h-3" /><span className="text-xs font-bold w-8 text-right font-pixel">{user.base.level}</span></div>
@@ -824,107 +825,57 @@
 
                         {activeTab === 'tasks' && (
                             <div className="space-y-4 animate-slide-in">
-                                {/* Date Navigation */}
+                                {/* Date Nav */}
                                 <div className="flex items-center justify-between bg-slate-700/50 p-2 rounded border border-slate-600">
                                     <button onClick={() => changeDate(-1)} className="text-white hover:text-blue-300"><ChevronLeft size={20} /></button>
-                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowCalendar(true)}>
-                                        <span className={`font-bold font-pixel text-base ${!isToday ? 'text-yellow-400' : 'text-white'}`}>{viewDateStr}</span>
-                                        <Calendar size={14} className="text-slate-300"/>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {!isToday && <button onClick={jumpToToday} className="text-[10px] bg-slate-600 px-2 py-1 rounded text-white hover:bg-slate-500">回到今天</button>}
-                                        <button onClick={() => changeDate(1)} className={`text-white hover:text-blue-300 ${isToday ? 'invisible' : ''}`}><ChevronRight size={20} /></button>
-                                    </div>
+                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowCalendar(true)}><span className={`font-bold font-pixel text-base ${!isToday ? 'text-yellow-400' : 'text-white'}`}>{viewDateStr}</span><Calendar size={14} className="text-slate-300"/></div>
+                                    <div className="flex items-center gap-2">{!isToday && <button onClick={jumpToToday} className="text-[10px] bg-slate-600 px-2 py-1 rounded text-white hover:bg-slate-500">回到今天</button>}<button onClick={() => changeDate(1)} className={`text-white hover:text-blue-300 ${isToday ? 'invisible' : ''}`}><ChevronRight size={20} /></button></div>
                                 </div>
 
+                                {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
                                     <button onClick={() => setQuestFilter('all')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => setQuestFilter('base')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
-                                    <button onClick={() => setQuestFilter('job')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
+                                    <button onClick={() => setQuestFilter('base')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
+                                    <button onClick={() => setQuestFilter('job')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
                                 </div>
 
+                                {/* Task Form */}
                                 <Card title="Quest Board">
                                     <div className="flex flex-col gap-2">
                                         <input type="text" placeholder="新任務..." className="w-full px-2 py-1.5" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
                                         <div className="grid grid-cols-2 gap-2">
                                             <select className="px-1 py-1.5 text-xs" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>{Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}</select>
-                                            <select className="px-1 py-1.5 text-xs" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}><option value="daily">每日</option><option value="weekly">每週</option><option value="custom">自定義</option><option value="none">一次</option></select>
+                                            <select className="px-1 py-1.5 text-xs" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}><option value="daily">每日</option><option value="weekly">每週</option><option value="weekend">週末</option><option value="custom">自定義</option><option value="none">一次</option></select>
                                         </div>
-                                        
-                                        {/* Custom Frequency Input */}
-                                        {newTask.repeat === 'custom' && (
-                                            <div className="flex items-center gap-2 bg-slate-700 p-1.5 rounded border border-slate-600">
-                                                <span className="text-[10px] text-slate-300">每</span>
-                                                <input 
-                                                    type="number" 
-                                                    min="1" 
-                                                    className="w-12 px-1 py-0.5 text-center text-xs bg-slate-800 text-white rounded border border-slate-500"
-                                                    value={newTask.frequency || ''} 
-                                                    onChange={(e) => setNewTask({...newTask, frequency: e.target.value})}
-                                                    placeholder="天數"
-                                                />
-                                                <span className="text-[10px] text-slate-300">天重置一次</span>
-                                            </div>
-                                        )}
-
-                                        <div className="flex gap-2">
-                                             <select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}><option value="10">10 XP ($20Z)</option><option value="20">20 XP ($40Z)</option><option value="30">30 XP ($60Z)</option><option value="50">50 XP ($100Z)</option></select>
-                                            <Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button>
-                                        </div>
+                                        {newTask.repeat === 'custom' && <div className="flex items-center gap-2 bg-slate-700 p-1.5 rounded border border-slate-600"><span className="text-[10px] text-slate-300">每</span><input type="number" min="1" className="w-12 px-1 py-0.5 text-center text-xs bg-slate-800 text-white rounded border border-slate-500" value={newTask.frequency || ''} onChange={(e) => setNewTask({...newTask, frequency: e.target.value})} placeholder="天數" /><span className="text-[10px] text-slate-300">天重置一次</span></div>}
+                                        <div className="flex gap-2"><select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}><option value="10">10 XP ($20Z)</option><option value="20">20 XP ($40Z)</option><option value="30">30 XP ($60Z)</option><option value="50">50 XP ($100Z)</option></select><Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button></div>
                                     </div>
                                 </Card>
 
+                                {/* Quick Import */}
                                 <div className="flex flex-wrap justify-end gap-2">
                                     <button onClick={handleImportUpgradePack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-yellow-300 border border-slate-600 hover:bg-slate-600"><Sparkles size={12} /> 升級包</button>
                                     <button onClick={handleImportEngineerPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-cyan-300 border border-slate-600 hover:bg-slate-600"><HardHat size={12} /> 環工包</button>
                                     <button onClick={handleImportStarterPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-indigo-300 border border-slate-600 hover:bg-slate-600"><Download size={12} /> 新手包</button>
                                 </div>
 
-                                <div className="space-y-2">
-                                    {filteredTasks.length === 0 && <div className="text-center py-8 text-slate-400 text-xs">無任務</div>}
-                                    {filteredTasks.sort((a,b) => {
-                                        const isCompletedA = (dailyCompletions[viewDateStr] || []).includes(a.id);
-                                        const isCompletedB = (dailyCompletions[viewDateStr] || []).includes(b.id);
-                                        return (isCompletedA === isCompletedB) ? 0 : isCompletedA ? 1 : -1;
-                                    }).map((task) => {
-                                        const cat = categories[task.category] || categories.general;
-                                        const xpType = cat.type === 'base' ? 'Base' : 'Job';
-                                        const moneyReward = task.money || (task.xp * 2);
-                                        const isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
-                                        
-                                        let repeatLabel = "";
-                                        if (task.repeat === 'custom' && task.frequency) {
-                                            repeatLabel = `每${task.frequency}天`;
-                                        }
-
-                                        return (
-                                            <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${isCompleted ? 'opacity-60 bg-gray-200' : 'bg-white'}`}>
-                                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                    <button onClick={() => handleToggleTask(task.id)} className={`shrink-0 h-6 w-6 rounded shadow-sm flex items-center justify-center border transition-all active:scale-95 ${isCompleted ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400'}`}>
-                                                        {isCompleted && <CheckCircle2 size={14} />}
-                                                    </button>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                            <span className={`text-[9px] px-1 rounded border ${cat.bg} flex items-center gap-1`}>{cat.icon} {cat.label}</span>
-                                                            <span className="text-[10px] font-pixel text-slate-500">+{task.xp} {xpType}</span>
-                                                            <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${moneyReward} Z</span>
-                                                            {task.stamina > 0 && <span className="text-[10px] font-pixel text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">+{task.stamina} STA</span>}
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</h3>
-                                                            {repeatLabel && <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded border border-slate-200">{repeatLabel}</span>}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button onClick={() => handleDeleteTask(task.id)} className="ml-2 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
-                                            </div>
-                                        );
-                                    })}
+                                {/* Smart Task List */}
+                                <div className="space-y-6 pb-12">
+                                    {priorityList.length === 0 && dailyList.length === 0 && completedList.length === 0 && <div className="text-center py-8 text-slate-400 text-xs">無任務</div>}
+                                    
+                                    {renderTaskSection(priorityList, "🔥 重要 / 週期性")}
+                                    {renderTaskSection(dailyList, "📅 每日例行")}
+                                    {/* Completed Section - slightly dimmed */}
+                                    {completedList.length > 0 && (
+                                        <div className="opacity-60 grayscale-[0.5]">
+                                            {renderTaskSection(completedList, "✅ 已完成")}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
-
-                        {/* Rewards Tab (Shop Style) */}
+                        
+                        {/* Rewards & History Tabs (unchanged structure) */}
                         {activeTab === 'rewards' && (
                             <div className="space-y-4 animate-slide-in">
                                 <Card title="Item Shop">
@@ -941,44 +892,23 @@
                                         </div>
                                     </div>
                                 </Card>
-
-                                <div className="flex justify-end">
-                                    <button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button>
-                                </div>
-
+                                <div className="flex justify-end"><button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button></div>
                                 <div className="grid grid-cols-1 gap-2">
-                                    {rewards.sort((a,b) => {
-                                        // 排序邏輯：Zeny 在前，Stamina 在後，然後按價格排序
-                                        if (a.currency === b.currency) return (a.cost || 0) - (b.cost || 0);
-                                        return a.currency === 'stamina' ? 1 : -1;
-                                    }).map((reward) => {
+                                    {rewards.sort((a,b) => (a.currency === b.currency) ? (a.cost || 0) - (b.cost || 0) : a.currency === 'stamina' ? 1 : -1).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         const cost = reward.cost || 0;
                                         const currency = reward.currency || 'zeny';
                                         const canAfford = currency === 'zeny' ? (user.zeny || 0) >= cost : (user.stamina?.current || 0) >= cost;
-                                        
                                         return (
                                             <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-white' : 'bg-gray-200 opacity-80'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`p-1.5 rounded ${isUnlocked ? (currency === 'stamina' ? 'text-emerald-600 bg-emerald-100' : 'text-blue-600 bg-blue-100') : 'text-slate-400 bg-slate-200'}`}>
-                                                        {isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}
-                                                    </div>
+                                                    <div className={`p-1.5 rounded ${isUnlocked ? (currency === 'stamina' ? 'text-emerald-600 bg-emerald-100' : 'text-blue-600 bg-blue-100') : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}</div>
                                                     <div>
                                                         <h3 className="font-bold text-sm text-slate-700">{reward.title}</h3>
-                                                        <div className="flex items-center gap-2 text-[10px]">
-                                                            <span className={`font-pixel ${isUnlocked ? (canAfford ? (currency === 'stamina' ? 'text-emerald-600 font-bold' : 'text-yellow-600 font-bold') : 'text-red-500') : 'text-slate-400'}`}>
-                                                                {currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}
-                                                            </span>
-                                                            {!isUnlocked && <span className="text-red-400">Req: Lv.{reward.levelReq}</span>}
-                                                        </div>
+                                                        <div className="flex items-center gap-2 text-[10px]"><span className={`font-pixel ${isUnlocked ? (canAfford ? (currency === 'stamina' ? 'text-emerald-600 font-bold' : 'text-yellow-600 font-bold') : 'text-red-500') : 'text-slate-400'}`}>{currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}</span>{!isUnlocked && <span className="text-red-400">Req: Lv.{reward.levelReq}</span>}</div>
                                                     </div>
                                                 </div>
-                                                
-                                                {isUnlocked ? (
-                                                    <Button onClick={() => handleRedeemReward(reward)} variant={canAfford ? (currency === 'stamina' ? "primary" : "green") : "outline"} disabled={!canAfford && currency === 'zeny'} className="text-xs py-1 px-2">購買</Button>
-                                                ) : (
-                                                    <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
-                                                )}
+                                                {isUnlocked ? <Button onClick={() => handleRedeemReward(reward)} variant={canAfford ? (currency === 'stamina' ? "primary" : "green") : "outline"} disabled={!canAfford && currency === 'zeny'} className="text-xs py-1 px-2">購買</Button> : <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>}
                                             </div>
                                         );
                                     })}
@@ -997,18 +927,13 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border border-slate-400 transform -translate-x-1/2 z-10"></div>
                                                 <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
-                                                <div className="space-y-2">
+                                                <div className="space-y-1.5">
                                                     {entries.map(entry => (
-                                                        <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between shadow-sm">
-                                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                                <span className={`text-xs font-bold truncate ${entry.title.includes('兌換:') ? 'text-yellow-400' : 'text-slate-200'}`}>{entry.title}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                {entry.xp !== 0 && <span className={`text-[10px] font-pixel ${entry.xp > 0 ? 'text-indigo-400' : 'text-red-400'}`}>{entry.xp > 0 ? '+' : ''}{entry.xp} XP</span>}
-                                                                {entry.money !== 0 && <span className={`text-[10px] font-pixel ${entry.money > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{entry.money > 0 ? '+' : ''}${entry.money} Z</span>}
-                                                            </div>
+                                                        <div key={entry.logId} className="bg-white/90 border border-slate-300 p-2 rounded flex items-center justify-between shadow-sm">
+                                                            <span className="text-xs text-slate-700 truncate pr-2">{entry.title}</span>
+                                                            <span className="text-[10px] font-bold text-blue-600 shrink-0">+{entry.xp} XP</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1027,27 +952,13 @@
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase">Data</h4>
                                 <div className="flex gap-2">
                                     <Button onClick={handleExportData} className="flex-1 text-xs"><Save size={14} /> 存檔</Button>
-                                    <label className="flex-1 ro-btn-base px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 bg-gray-100 text-gray-800 border-gray-300 cursor-pointer hover:bg-gray-200">
-                                        <Upload size={14} /> 讀檔
-                                        <input type="file" accept=".json" className="hidden" onChange={handleImportData} />
-                                    </label>
+                                    <label className="flex-1 ro-btn-base px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 bg-gray-100 text-gray-800 border-gray-300 cursor-pointer hover:bg-gray-200"><Upload size={14} /> 讀檔<input type="file" accept=".json" className="hidden" onChange={handleImportData} /></label>
                                 </div>
                             </div>
-                            
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase">Change Job</h4>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        placeholder="手動輸入新職業..." 
-                                        className="flex-1 px-2 py-1 text-xs"
-                                        value={newJobTitle}
-                                        onChange={(e) => setNewJobTitle(e.target.value)}
-                                    />
-                                    <Button onClick={confirmJobChange} variant="gold" className="text-xs">變更</Button>
-                                </div>
+                                <div className="flex gap-2"><input type="text" placeholder="手動輸入新職業..." className="flex-1 px-2 py-1 text-xs" value={newJobTitle} onChange={(e) => setNewJobTitle(e.target.value)} /><Button onClick={confirmJobChange} variant="gold" className="text-xs">變更</Button></div>
                             </div>
-
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase">Reset</h4>
                                 <div className="grid grid-cols-1 gap-2">
@@ -1057,34 +968,11 @@
                             </div>
                         </div>
                     </Modal>
-
-                    {/* Calendar Modal */}
                     <Modal isOpen={showCalendar} onClose={() => setShowCalendar(false)} title="Calendar">
-                        <div className="grid grid-cols-7 gap-1">
-                            {['日','一','二','三','四','五','六'].map(d => <div key={d} className="text-center text-xs font-bold text-slate-500">{d}</div>)}
-                            {renderCalendar()}
-                        </div>
+                        <div className="grid grid-cols-7 gap-1">{['日','一','二','三','四','五','六'].map(d => <div key={d} className="text-center text-xs font-bold text-slate-500">{d}</div>)}{renderCalendar()}</div>
                     </Modal>
-
-                    <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="LEVEL UP!">
-                        <div className="text-center space-y-4 py-4">
-                            <div className="mx-auto h-20 w-20 rounded-full bg-yellow-100 flex items-center justify-center animate-bounce text-yellow-600 border-4 border-yellow-200">
-                                <img src="https://api.iconify.design/mdi:wings.svg?color=goldenrod" className="w-12 h-12" alt="wings" />
-                            </div>
-                            <div><h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2><p className="text-sm text-slate-600 mt-1">Congratulations!</p></div>
-                            <Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button>
-                        </div>
-                    </Modal>
-
-                    <Modal isOpen={!!jobChangeData} onClose={() => setJobChangeData(null)} title="JOB CHANGE!">
-                        <div className="text-center space-y-4 py-4">
-                            <div className="mx-auto h-24 w-24 rounded-full bg-gradient-to-b from-yellow-300 to-yellow-500 flex items-center justify-center animate-job-change border-4 border-white shadow-lg">
-                                <Crown size={48} className="text-white drop-shadow-md" />
-                            </div>
-                            <div><h2 className="text-xl font-bold text-blue-900">完成: {jobChangeData}</h2><p className="text-sm text-slate-600 mt-2">請輸入新職業：</p><input type="text" placeholder="例如: 資深環工技師" className="w-full mt-3 px-3 py-2 text-center font-bold text-lg border-2 border-yellow-400 focus:border-yellow-600 rounded" value={newJobTitle} onChange={(e) => setNewJobTitle(e.target.value)} /></div>
-                            <Button onClick={confirmJobChange} variant="gold" className="w-full mt-2 py-3 text-base">確認轉職</Button>
-                        </div>
-                    </Modal>
+                    <Modal isOpen={!!levelUpData} onClose={() => setLevelUpData(null)} title="LEVEL UP!"><div className="text-center space-y-4 py-4"><div className="mx-auto h-20 w-20 rounded-full bg-yellow-100 flex items-center justify-center animate-bounce text-yellow-600 border-4 border-yellow-200"><img src="https://api.iconify.design/mdi:wings.svg?color=goldenrod" className="w-12 h-12" alt="wings" /></div><div><h2 className="text-3xl font-pixel text-blue-800">LV {levelUpData?.level}</h2><p className="text-sm text-slate-600 mt-1">Congratulations!</p></div><Button onClick={() => setLevelUpData(null)} variant="primary" className="w-full mt-2">Confirm</Button></div></Modal>
+                    <Modal isOpen={!!jobChangeData} onClose={() => setJobChangeData(null)} title="JOB CHANGE!"><div className="text-center space-y-4 py-4"><div className="mx-auto h-24 w-24 rounded-full bg-gradient-to-b from-yellow-300 to-yellow-500 flex items-center justify-center animate-job-change border-4 border-white shadow-lg"><Crown size={48} className="text-white drop-shadow-md" /></div><div><h2 className="text-xl font-bold text-blue-900">完成: {jobChangeData}</h2><p className="text-sm text-slate-600 mt-2">請輸入新職業：</p><input type="text" placeholder="例如: 資深環工技師" className="w-full mt-3 px-3 py-2 text-center font-bold text-lg border-2 border-yellow-400 focus:border-yellow-600 rounded" value={newJobTitle} onChange={(e) => setNewJobTitle(e.target.value)} /></div><Button onClick={confirmJobChange} variant="gold" className="w-full mt-2 py-3 text-base">確認轉職</Button></div></Modal>
                 </div>
             );
         }
