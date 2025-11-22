@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Audio Ver.</title>
+    <title>LifeRPG - Step Tasks</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -131,7 +131,7 @@
         .animate-job-change {
             animation: job-change-shine 1.5s infinite;
         }
-        
+
         /* 日曆樣式 */
         .calendar-day {
             text-align: center;
@@ -173,10 +173,10 @@
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery,
-            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX
+            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, ArrowRight
         } = LucideReact;
 
-        // --- Audio System (Retro 8-bit Synth) ---
+        // --- Audio System ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         const playTone = (freq, type, duration, delay = 0, vol = 0.1) => {
@@ -205,25 +205,28 @@
                 playTone(600, 'square', 0.1, 0, 0.05);
                 playTone(1200, 'square', 0.1, 0.05, 0.05);
             },
+            step: () => { // Step sound
+                playTone(900, 'sine', 0.05, 0, 0.05);
+                playTone(1500, 'sine', 0.05, 0.05, 0.05);
+            },
             cancel: () => {
                 playTone(300, 'sawtooth', 0.1, 0, 0.05);
                 playTone(150, 'sawtooth', 0.2, 0.1, 0.05);
             },
-            success: () => { // Coin sound
+            success: () => { 
                 playTone(1200, 'sine', 0.1, 0, 0.1);
                 playTone(2400, 'sine', 0.4, 0.05, 0.1);
             },
-            levelup: () => { // Fanfare
+            levelup: () => {
                 const now = 0;
-                playTone(523.25, 'square', 0.2, now, 0.1); // C5
-                playTone(659.25, 'square', 0.2, now + 0.1, 0.1); // E5
-                playTone(783.99, 'square', 0.2, now + 0.2, 0.1); // G5
-                playTone(1046.50, 'square', 0.6, now + 0.3, 0.1); // C6
+                playTone(523.25, 'square', 0.2, now, 0.1); 
+                playTone(659.25, 'square', 0.2, now + 0.1, 0.1); 
+                playTone(783.99, 'square', 0.2, now + 0.2, 0.1); 
+                playTone(1046.50, 'square', 0.6, now + 0.3, 0.1); 
             }
         };
 
         // --- UI 元件 ---
-        
         const Card = ({ children, className = "", title }) => (
             <div className={`ro-window flex flex-col ${className}`}>
                 {title && <div className="ro-title-bar flex items-center gap-2">{title}</div>}
@@ -262,7 +265,7 @@
         const ProgressBar = ({ current, max, label, height = "h-4", type = "hp" }) => {
             const percentage = Math.min(100, Math.max(0, (current / max) * 100));
             
-            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; // default SP
+            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; 
             if (type === 'hp') barColor = 'bg-gradient-to-b from-red-400 via-red-500 to-red-700';
             if (type === 'stamina') barColor = 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700';
 
@@ -354,7 +357,6 @@
                 };
             });
 
-            // Global Audio State
             window.soundEnabled = user.sound;
 
             function getWeekNumber(d) {
@@ -382,7 +384,6 @@
                 return saved ? JSON.parse(saved) : [
                     { id: 1, title: "遛狗", category: "fitness", xp: 30, money: 50, completed: false, repeat: 'daily' },
                     { id: 2, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, completed: false, repeat: 'daily' },
-                    { id: 3, title: "洗衣服", category: "chores", xp: 40, money: 60, completed: false, repeat: 'weekly' },
                 ];
             });
 
@@ -395,7 +396,6 @@
                 const saved = localStorage.getItem('liferpg-rewards-v2');
                 return saved ? JSON.parse(saved) : [
                     { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, cost: 600, currency: 'zeny', unlocked: false },
-                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', unlocked: false },
                     { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true },
                 ];
             });
@@ -458,6 +458,7 @@
                     setTasks(prev => prev.map(t => ({ ...t, completed: false })));
                 }
 
+                // 自動刪除重複的「運動」任務
                 setTasks(prev => {
                     const hasFitness = prev.some(t => t.title === "健身/運動");
                     if (hasFitness) {
@@ -472,6 +473,16 @@
                 
                 let updatedTasks = [...tasks];
                 let tasksChanged = false;
+
+                // Chain Reset Logic (Also resets chainIndex if needed daily)
+                // For simple chain tasks, we reset index to 0 daily if they are 'daily_chain'.
+                // But user asked for "daily reset" of water.
+                updatedTasks = updatedTasks.map(t => {
+                    if (t.chain && t.repeat === 'daily' && appState.lastVisitDate !== todayString) {
+                         return { ...t, chainIndex: 0, completed: false };
+                    }
+                    return t;
+                });
 
                 if (appState.lastVisitDate !== todayString) {
                     updatedTasks = updatedTasks.map(t => {
@@ -524,8 +535,82 @@
                 if(newState) sfx.confirm();
             };
 
+            // Step-Undo Logic
+            const handleUndoStep = (e, task) => {
+                e.stopPropagation();
+                sfx.cancel();
+                setTasks(prev => prev.map(t => {
+                    if (t.id === task.id) {
+                         const newIndex = Math.max(0, (t.chainIndex || 0) - 1);
+                         return { ...t, chainIndex: newIndex, completed: false }; // Uncomplete if it was completed
+                    }
+                    return t;
+                }));
+                // Remove log? It's hard to track specific step log without ID.
+                // Simplified: Just deduct rewards.
+                const stepData = task.chain[(task.chainIndex || 0) - 1]; // The step we are undoing
+                if (stepData) {
+                     // Reverse rewards
+                     const revMoney = stepData.money || (stepData.xp * 2);
+                     updateUserStatus(-stepData.xp, task.category, -revMoney, 0);
+                     showNotification(`已復原步驟 (回收 XP & Zeny)`, "info");
+                }
+            };
+
             const handleToggleTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
+                
+                // Chain Logic
+                if (task.chain && task.chain.length > 0) {
+                    const currentIndex = task.chainIndex || 0;
+                    
+                    // If already fully completed, do nothing or standard undo?
+                    // Let's say if completed, clicking main button does nothing (use undo button?)
+                    // Or clicking toggles completion state if it was the last step.
+                    // Let's stick to: Click = Advance.
+                    
+                    if (currentIndex < task.chain.length) {
+                        // Advance Step
+                        const stepData = task.chain[currentIndex];
+                        const stepMoney = stepData.money !== undefined ? stepData.money : (stepData.xp * 2);
+                        
+                        // Award
+                        updateUserStatus(stepData.xp, task.category, stepMoney, 0);
+                        
+                        // Log
+                        setHistory(prev => [{ 
+                            logId: Date.now(), 
+                            taskId: task.id, 
+                            title: `${task.title} - ${stepData.label}`, 
+                            category: task.category, 
+                            xp: stepData.xp, 
+                            money: stepMoney, 
+                            date: viewDateStr, 
+                            completedAt: new Date().toISOString() 
+                        }, ...prev]);
+
+                        sfx.step();
+
+                        // Update Task State
+                        const nextIndex = currentIndex + 1;
+                        const isNowCompleted = nextIndex >= task.chain.length;
+                        
+                        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, chainIndex: nextIndex, completed: isNowCompleted, lastCompleted: isNowCompleted ? new Date().toISOString() : t.lastCompleted } : t));
+
+                        if (isNowCompleted) {
+                            sfx.success();
+                            // Add to daily completions if fully done
+                            setDailyCompletions(prev => ({
+                                ...prev,
+                                [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
+                            }));
+                            showNotification("系列任務完成！", "success");
+                        } 
+                    }
+                    return;
+                }
+
+                // Standard Logic
                 const taskMoney = task.money !== undefined ? task.money : (task.xp * 2); 
                 const taskStamina = task.stamina || 0;
 
@@ -533,7 +618,7 @@
                 const isCompleted = completedList.includes(taskId);
                 
                 if (!isCompleted) {
-                    sfx.success(); // Sound
+                    sfx.success(); 
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -565,7 +650,7 @@
                         setTimeout(() => { setNewJobTitle(""); setJobChangeData(task.title); sfx.levelup(); }, 800); 
                     }
                 } else {
-                    sfx.cancel(); // Sound
+                    sfx.cancel(); 
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: prev[viewDateStr].filter(id => id !== taskId)
@@ -610,7 +695,7 @@
                         showNotification("Zeny 不足！", "error"); 
                         return; 
                     }
-                    sfx.confirm(); // Sound
+                    sfx.confirm(); 
                     updateUserStatus(0, "general", -cost);
                     showNotification(`已兌換 ${reward.title} (-$${cost} Z)`, "gold");
                 } else if (currency === 'stamina') {
@@ -619,7 +704,7 @@
                         showNotification("精力不足！", "error"); 
                         return; 
                     }
-                    sfx.success(); // Sound
+                    sfx.success(); 
                     updateUserStatus(0, "general", 0, -cost);
                     showNotification(`聖人模式 (-${cost} STA)`, "success");
                 }
@@ -707,7 +792,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.0" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.1" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -739,7 +824,6 @@
                 reader.readAsText(file);
             };
 
-            // Import Packs
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
                 const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random()}));
@@ -748,14 +832,55 @@
                 sfx.confirm();
                 showNotification(`已匯入 ${name}`, "success");
             }
-            const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }], "新手包");
-            const handleImportEngineerPack = () => mergePack([{ id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' }, { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }], "環工包");
+            
+            // UPDATED STARTER PACK WITH WATER CHAIN
+            const handleImportStarterPack = () => mergePack([
+                { id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, 
+                { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, 
+                // Chain Task for Water
+                { 
+                    id: 1008, 
+                    title: "💧 喝水", 
+                    category: "fitness", 
+                    xp: 5, 
+                    money: 5, 
+                    repeat: 'daily',
+                    chainIndex: 0,
+                    chain: [
+                        { label: "600cc", xp: 5, money: 5 },
+                        { label: "1200cc", xp: 5, money: 5 },
+                        { label: "2000cc (完成)", xp: 10, money: 20 }
+                    ]
+                },
+                { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }
+            ], "新手包");
+
+            const handleImportEngineerPack = () => {
+                if(!window.confirm("匯入環工與理財任務？")) return;
+                mergePack([
+                    { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, 
+                    { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, 
+                    { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }
+                ], "環工包");
+            };
+
             const handleImportUpgradePack = () => {
                 mergePack([
-                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' }, { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' }, { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' }, { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, 
+                    { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, 
+                    { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, 
+                    { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, 
+                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, 
                     { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
-                    { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }
+                    { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 },
+                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' },
+                    { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
+                    { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
+                    { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
                 ], "升級包");
             };
 
@@ -806,27 +931,64 @@
                 const cat = categories[task.category] || categories.general;
                 const xpType = cat.type === 'base' ? 'Base' : 'Job';
                 const moneyReward = task.money || (task.xp * 2);
-                const isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
+                
+                let isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
+                // Override completed check if task is stored as completed (for chains)
+                if (task.completed && task.chain) isCompleted = true;
+
                 let repeatLabel = "";
                 if (task.repeat === 'custom' && task.frequency) repeatLabel = `每${task.frequency}天`;
                 if (task.repeat === 'weekend') repeatLabel = `週末`;
                 if (task.repeat === 'weekly') repeatLabel = `每週`;
                 
+                // Chain Logic Display
+                let displayTitle = task.title;
+                let displayXP = task.xp;
+                let displayMoney = moneyReward;
+                let chainStepLabel = "";
+
+                if (task.chain) {
+                    const currentStepIndex = Math.min(task.chainIndex || 0, task.chain.length - 1);
+                    const stepData = task.chain[currentStepIndex];
+                    
+                    // If fully completed, show last step but marked done
+                    if (task.completed) {
+                         displayTitle = `${task.title} - 完成`;
+                         chainStepLabel = `(${task.chain.length}/${task.chain.length})`;
+                    } else {
+                        displayTitle = `${task.title} - ${stepData.label}`;
+                        chainStepLabel = `(${currentStepIndex + 1}/${task.chain.length})`;
+                        displayXP = stepData.xp;
+                        displayMoney = stepData.money !== undefined ? stepData.money : (stepData.xp * 2);
+                    }
+                }
+
                 return (
                     <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${isCompleted ? 'opacity-50 bg-gray-300 border-gray-400' : 'bg-white'}`}>
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                             <button onClick={() => handleToggleTask(task.id)} className={`shrink-0 h-6 w-6 rounded shadow-sm flex items-center justify-center border transition-all active:scale-95 ${isCompleted ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400'}`}>
+                             <button 
+                                onClick={(e) => handleToggleTask(task.id)} 
+                                className={`shrink-0 h-6 w-6 rounded shadow-sm flex items-center justify-center border transition-all active:scale-95 ${isCompleted ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400'}`}
+                             >
                                 {isCompleted && <CheckCircle2 size={14} />}
                             </button>
+                            
+                            {/* Undo Step Button for Chain Tasks */}
+                            {task.chain && (task.chainIndex || 0) > 0 && !isCompleted && (
+                                <button onClick={(e) => handleUndoStep(e, task)} className="absolute left-8 -ml-1 text-slate-400 hover:text-red-400">
+                                    <RotateCcw size={10} />
+                                </button>
+                            )}
+
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 mb-0.5">
                                     <span className={`text-[9px] px-1 rounded border ${cat.bg} flex items-center gap-1`}>{cat.icon} {cat.label}</span>
-                                    <span className="text-[10px] font-pixel text-slate-500">+{task.xp} {xpType}</span>
-                                    <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${moneyReward} Z</span>
+                                    <span className="text-[10px] font-pixel text-slate-500">+{displayXP} {xpType}</span>
+                                    <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${displayMoney} Z</span>
                                     {task.stamina > 0 && <span className="text-[10px] font-pixel text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">+{task.stamina} STA</span>}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-500' : 'text-slate-800'}`}>{task.title}</h3>
+                                    <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-500' : 'text-slate-800'}`}>{displayTitle} <span className="text-[10px] text-slate-500 font-normal">{chainStepLabel}</span></h3>
                                     {repeatLabel && <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded border border-slate-200">{repeatLabel}</span>}
                                 </div>
                             </div>
@@ -1058,7 +1220,7 @@
                         )}
                     </main>
 
-                    {/* Settings & Modals */}
+                    {/* Settings Modal */}
                     <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="System">
                         <div className="space-y-4 w-full">
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
