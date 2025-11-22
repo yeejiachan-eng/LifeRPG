@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Smart Sorting</title>
+    <title>LifeRPG - Audio Ver.</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -173,8 +173,54 @@
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery,
-            ChevronLeft, ChevronRight, RotateCcw
+            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX
         } = LucideReact;
+
+        // --- Audio System (Retro 8-bit Synth) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const playTone = (freq, type, duration, delay = 0, vol = 0.1) => {
+            if (!window.soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+            
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + delay + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(audioCtx.currentTime + delay);
+            osc.stop(audioCtx.currentTime + delay + duration);
+        };
+
+        const sfx = {
+            click: () => playTone(800, 'triangle', 0.05, 0, 0.05),
+            confirm: () => {
+                playTone(600, 'square', 0.1, 0, 0.05);
+                playTone(1200, 'square', 0.1, 0.05, 0.05);
+            },
+            cancel: () => {
+                playTone(300, 'sawtooth', 0.1, 0, 0.05);
+                playTone(150, 'sawtooth', 0.2, 0.1, 0.05);
+            },
+            success: () => { // Coin sound
+                playTone(1200, 'sine', 0.1, 0, 0.1);
+                playTone(2400, 'sine', 0.4, 0.05, 0.1);
+            },
+            levelup: () => { // Fanfare
+                const now = 0;
+                playTone(523.25, 'square', 0.2, now, 0.1); // C5
+                playTone(659.25, 'square', 0.2, now + 0.1, 0.1); // E5
+                playTone(783.99, 'square', 0.2, now + 0.2, 0.1); // G5
+                playTone(1046.50, 'square', 0.6, now + 0.3, 0.1); // C6
+            }
+        };
 
         // --- UI 元件 ---
         
@@ -197,9 +243,14 @@
                 green: "bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-300"
             };
             
+            const handleClick = (e) => {
+                if (!disabled) sfx.click();
+                if (onClick) onClick(e);
+            };
+
             return (
                 <button 
-                    onClick={onClick}
+                    onClick={handleClick}
                     disabled={disabled}
                     className={`ro-btn-base px-3 py-2 rounded text-sm font-bold flex items-center justify-center gap-2 ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 >
@@ -237,12 +288,16 @@
 
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
+            const handleClose = () => {
+                sfx.cancel();
+                onClose();
+            }
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm px-4">
                     <div className="ro-window w-full max-w-sm flex flex-col max-h-[85vh] shadow-2xl animate-slide-up">
                         <div className="ro-title-bar flex justify-between items-center shrink-0">
                             <h3 className="flex items-center gap-2 text-sm"><Info size={14}/> {title}</h3>
-                            <button onClick={onClose} className="text-slate-600 hover:text-red-600 hover:bg-white/50 rounded p-0.5"><X size={18} /></button>
+                            <button onClick={handleClose} className="text-slate-600 hover:text-red-600 hover:bg-white/50 rounded p-0.5"><X size={18} /></button>
                         </div>
                         <div className="p-4 overflow-y-auto bg-[#f7fafc]">
                             {children}
@@ -280,7 +335,8 @@
                             name: parsed.name || "Player",
                             jobTitle: parsed.jobTitle || "工程師",
                             zeny: parsed.zeny || 0,
-                            stamina: parsed.stamina || { current: 100, max: 100 } 
+                            stamina: parsed.stamina || { current: 100, max: 100 },
+                            sound: parsed.sound !== undefined ? parsed.sound : true 
                         };
                     }
                 } catch (e) {
@@ -293,9 +349,13 @@
                     base: { level: 1, xp: 0, maxXp: 100 }, 
                     job: { level: 1, xp: 0, maxXp: 100 }, 
                     stamina: { current: 100, max: 100 }, 
-                    totalTasksCompleted: 0 
+                    totalTasksCompleted: 0,
+                    sound: true
                 };
             });
+
+            // Global Audio State
+            window.soundEnabled = user.sound;
 
             function getWeekNumber(d) {
                 d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -378,13 +438,15 @@
                 setTimeout(() => setNotification(null), 3000);
             };
 
-            React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); }, [user]);
+            // Effects
+            React.useEffect(() => { localStorage.setItem('liferpg-user-v2', JSON.stringify(user)); window.soundEnabled = user.sound; }, [user]);
             React.useEffect(() => { localStorage.setItem('liferpg-tasks', JSON.stringify(tasks)); }, [tasks]);
             React.useEffect(() => { localStorage.setItem('liferpg-rewards-v2', JSON.stringify(rewards)); }, [rewards]);
             React.useEffect(() => { localStorage.setItem('liferpg-history', JSON.stringify(history)); }, [history]);
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
             React.useEffect(() => { localStorage.setItem('liferpg-daily-completions', JSON.stringify(dailyCompletions)); }, [dailyCompletions]);
 
+            // Migration & Daily Logic
             React.useEffect(() => {
                 const legacyCompleted = tasks.filter(t => t.completed).map(t => t.id);
                 if (legacyCompleted.length > 0) {
@@ -453,6 +515,15 @@
                 setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
             }, []);
 
+            // --- 核心邏輯 ---
+            
+            const toggleSound = () => {
+                const newState = !user.sound;
+                setUser({...user, sound: newState});
+                window.soundEnabled = newState;
+                if(newState) sfx.confirm();
+            };
+
             const handleToggleTask = (taskId) => {
                 const task = tasks.find(t => t.id === taskId);
                 const taskMoney = task.money !== undefined ? task.money : (task.xp * 2); 
@@ -462,6 +533,7 @@
                 const isCompleted = completedList.includes(taskId);
                 
                 if (!isCompleted) {
+                    sfx.success(); // Sound
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -490,9 +562,10 @@
 
                     const jobKeywords = ["技師", "執照", "License", "轉職", "Job Change", "工程師"];
                     if (jobKeywords.some(keyword => task.title.includes(keyword))) {
-                        setTimeout(() => { setNewJobTitle(""); setJobChangeData(task.title); }, 800); 
+                        setTimeout(() => { setNewJobTitle(""); setJobChangeData(task.title); sfx.levelup(); }, 800); 
                     }
                 } else {
+                    sfx.cancel(); // Sound
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: prev[viewDateStr].filter(id => id !== taskId)
@@ -516,12 +589,14 @@
             };
 
             const changeDate = (offset) => {
+                sfx.click();
                 const newDate = new Date(viewDate);
                 newDate.setDate(newDate.getDate() + offset);
                 setViewDate(newDate);
             };
 
             const jumpToToday = () => {
+                sfx.click();
                 setViewDate(new Date());
             };
 
@@ -530,11 +605,21 @@
                 const currency = reward.currency || 'zeny';
 
                 if (currency === 'zeny') {
-                    if (user.zeny < cost) { showNotification("Zeny 不足！", "error"); return; }
+                    if (user.zeny < cost) { 
+                        sfx.cancel();
+                        showNotification("Zeny 不足！", "error"); 
+                        return; 
+                    }
+                    sfx.confirm(); // Sound
                     updateUserStatus(0, "general", -cost);
                     showNotification(`已兌換 ${reward.title} (-$${cost} Z)`, "gold");
                 } else if (currency === 'stamina') {
-                    if ((user.stamina?.current || 0) < cost) { showNotification("精力不足！", "error"); return; }
+                    if ((user.stamina?.current || 0) < cost) { 
+                        sfx.cancel();
+                        showNotification("精力不足！", "error"); 
+                        return; 
+                    }
+                    sfx.success(); // Sound
                     updateUserStatus(0, "general", 0, -cost);
                     showNotification(`聖人模式 (-${cost} STA)`, "success");
                 }
@@ -546,6 +631,7 @@
 
             const confirmJobChange = () => {
                 if (!newJobTitle.trim()) return;
+                sfx.levelup();
                 setUser(prev => ({ ...prev, jobTitle: newJobTitle }));
                 setJobChangeData(null);
                 showNotification(`轉職成功！${newJobTitle}`, "gold");
@@ -570,13 +656,23 @@
                     if (xpAmount === 0) totalCompletedChange = 0;
 
                     if (xpAmount > 0) {
-                        while (newXP >= newMaxXp) { newXP -= newMaxXp; newLevel++; newMaxXp = Math.floor(newMaxXp * 1.2); leveledUp = true; }
+                        while (newXP >= newMaxXp) { 
+                            newXP -= newMaxXp; 
+                            newLevel++; 
+                            newMaxXp = Math.floor(newMaxXp * 1.2); 
+                            leveledUp = true; 
+                        }
                     } else if (xpAmount < 0) {
                         while (newXP < 0) {
                             if (newLevel > 1) { newLevel--; newMaxXp = calculateMaxXP(newLevel); newXP += newMaxXp; } else { newXP = 0; break; }
                         }
                     }
-                    if (leveledUp) { setTimeout(() => setLevelUpData({ type, level: newLevel }), 100); }
+                    if (leveledUp) { 
+                        setTimeout(() => {
+                            sfx.levelup();
+                            setLevelUpData({ type, level: newLevel });
+                        }, 100); 
+                    }
                     return { 
                         ...prev, zeny: newZeny, stamina: { ...prev.stamina, current: newStaminaCurrent },
                         [type]: { level: newLevel, xp: newXP, maxXp: newMaxXp }, 
@@ -585,7 +681,7 @@
                 });
             };
 
-            const handleManualReset = () => { if(window.confirm("重置每日任務？")) { setDailyCompletions({}); showNotification("已重置", "info"); setShowSettings(false); } };
+            const handleManualReset = () => { if(window.confirm("重置每日任務？")) { sfx.confirm(); setDailyCompletions({}); showNotification("已重置", "info"); setShowSettings(false); } };
             const handleDeleteTask = (id) => { setTasks(tasks.filter(t => t.id !== id)); showNotification("已刪除", "error"); };
             const handleAddTask = (e) => {
                 e.preventDefault();
@@ -594,6 +690,7 @@
                 const frequencyVal = parseInt(newTask.frequency) || 1;
                 setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat, frequency: frequencyVal }]);
                 setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
+                sfx.confirm();
                 showNotification("新增成功", "success");
             };
             const handleAddReward = (e) => {
@@ -601,13 +698,16 @@
                 if (!newReward.title.trim()) return;
                 setRewards([...rewards, { id: Date.now(), title: newReward.title, reqType: newReward.reqType, levelReq: parseInt(newReward.levelReq), cost: parseInt(newReward.cost || 0), currency: newReward.currency || 'zeny', unlocked: false }]);
                 setNewReward(prev => ({ ...prev, title: '', cost: 100, currency: 'zeny' })); 
+                sfx.confirm();
                 showNotification("新增獎勵", "success");
             };
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); setDailyCompletions({}); showNotification("已清除", "info"); setShowSettings(false); } };
 
+            // Import/Export
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "3.5" };
+                sfx.confirm();
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.0" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -625,12 +725,13 @@
                 reader.onload = (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        if(data.user) setUser({...data.user, name: data.user.name || "Player", jobTitle: data.user.jobTitle || "工程師", zeny: data.user.zeny || 0, stamina: data.user.stamina || {current:100, max:100}});
+                        if(data.user) setUser({...data.user, name: data.user.name || "Player", jobTitle: data.user.jobTitle || "工程師", zeny: data.user.zeny || 0, stamina: data.user.stamina || {current:100, max:100}, sound: data.user.sound !== undefined ? data.user.sound : true});
                         if(data.tasks) setTasks(data.tasks);
                         if(data.rewards) setRewards(data.rewards);
                         if(data.history) setHistory(data.history);
                         if(data.dailyCompletions) setDailyCompletions(data.dailyCompletions);
                         if(data.appState) setAppState(data.appState);
+                        sfx.success();
                         showNotification("還原成功", "success");
                         setShowSettings(false);
                     } catch (err) { showNotification("格式錯誤", "error"); }
@@ -638,11 +739,13 @@
                 reader.readAsText(file);
             };
 
+            // Import Packs
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
                 const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random()}));
                 if (newT.length === 0) { showNotification("任務已存在", "info"); return; }
                 setTasks(p => [...p, ...newT]);
+                sfx.confirm();
                 showNotification(`已匯入 ${name}`, "success");
             }
             const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }], "新手包");
@@ -650,12 +753,9 @@
             const handleImportUpgradePack = () => {
                 mergePack([
                     { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' }, { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' }, { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' }, { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
-                    { id: 3014, title: "打掃浴室", category: "chores", xp: 30, money: 60, repeat: 'weekly' },
-                    { id: 3015, title: "澆花", category: "chores", xp: 10, money: 20, repeat: 'custom', frequency: 3 },
-                    { id: 3016, title: "假日8點起床", category: "fitness", xp: 50, money: 100, repeat: 'weekend' },
-                    { id: 3017, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
-                    { id: 3018, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
-                    { id: 3019, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }
+                    { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
+                    { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
+                    { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }
                 ], "升級包");
             };
 
@@ -748,12 +848,6 @@
                      const isWeekendView = viewDay === 0 || viewDay === 6;
                      if (task.repeat === 'weekend' && !isWeekendView) return false;
                      
-                     // Hide Custom Cycle tasks that are done and not due yet (Optional, but user asked for clarity)
-                     // Logic: If custom task completed recently, maybe hide it from "Priority"? 
-                     // Actually user said "show if due".
-                     // Current logic: if completed -> shows in completed. if uncompleted -> shows in active.
-                     // The auto-reset logic handles the "unchecking". So if it's unchecked, it's due.
-                     
                      return true;
                 });
 
@@ -784,10 +878,15 @@
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const isSelected = dateStr === viewDateStr;
                     const hasData = dailyCompletions[dateStr] && dailyCompletions[dateStr].length > 0;
-                    days.push(<button key={i} onClick={() => { setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
+                    days.push(<button key={i} onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
                 }
                 return days;
             };
+
+            const switchTab = (tab) => {
+                sfx.click();
+                setActiveTab(tab);
+            }
 
             return (
                 <div className="w-full min-h-full flex flex-col text-sm">
@@ -802,7 +901,7 @@
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="bg-white/80 border border-slate-400 rounded px-2 py-0.5 text-xs font-pixel flex items-center gap-1"><span className="text-yellow-600 font-bold">Z</span><span>{user.zeny || 0}</span></div>
-                                    <button onClick={() => setShowSettings(true)} className="text-slate-500 hover:text-blue-600"><Settings size={16} /></button>
+                                    <button onClick={() => {sfx.click(); setShowSettings(true);}} className="text-slate-500 hover:text-blue-600"><Settings size={16} /></button>
                                 </div>
                             </div>
                             <div className="flex justify-between items-end px-1">
@@ -818,9 +917,9 @@
                     {/* Main Content */}
                     <main className="flex-1 w-full max-w-lg mx-auto p-3 pb-32 overflow-x-hidden">
                         <div className="grid grid-cols-3 gap-2 mb-4 w-full">
-                            <button onClick={() => setActiveTab('tasks')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'tasks' ? 'bg-blue-200 text-blue-900 border-blue-400' : 'bg-white text-slate-600 border-slate-300'}`}><CheckCircle2 size={14} /> 任務</button>
-                            <button onClick={() => setActiveTab('rewards')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'rewards' ? 'bg-amber-200 text-amber-900 border-amber-400' : 'bg-white text-slate-600 border-slate-300'}`}><ShoppingBag size={14} /> 商店</button>
-                            <button onClick={() => setActiveTab('history')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'history' ? 'bg-teal-200 text-teal-900 border-teal-400' : 'bg-white text-slate-600 border-slate-300'}`}><Calendar size={14} /> 紀錄</button>
+                            <button onClick={() => switchTab('tasks')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'tasks' ? 'bg-blue-200 text-blue-900 border-blue-400' : 'bg-white text-slate-600 border-slate-300'}`}><CheckCircle2 size={14} /> 任務</button>
+                            <button onClick={() => switchTab('rewards')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'rewards' ? 'bg-amber-200 text-amber-900 border-amber-400' : 'bg-white text-slate-600 border-slate-300'}`}><ShoppingBag size={14} /> 商店</button>
+                            <button onClick={() => switchTab('history')} className={`ro-btn-base py-2 rounded text-xs font-bold flex items-center justify-center gap-1 ${activeTab === 'history' ? 'bg-teal-200 text-teal-900 border-teal-400' : 'bg-white text-slate-600 border-slate-300'}`}><Calendar size={14} /> 紀錄</button>
                         </div>
 
                         {activeTab === 'tasks' && (
@@ -828,15 +927,15 @@
                                 {/* Date Nav */}
                                 <div className="flex items-center justify-between bg-slate-700/50 p-2 rounded border border-slate-600">
                                     <button onClick={() => changeDate(-1)} className="text-white hover:text-blue-300"><ChevronLeft size={20} /></button>
-                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowCalendar(true)}><span className={`font-bold font-pixel text-base ${!isToday ? 'text-yellow-400' : 'text-white'}`}>{viewDateStr}</span><Calendar size={14} className="text-slate-300"/></div>
+                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => {sfx.click(); setShowCalendar(true);}}><span className={`font-bold font-pixel text-base ${!isToday ? 'text-yellow-400' : 'text-white'}`}>{viewDateStr}</span><Calendar size={14} className="text-slate-300"/></div>
                                     <div className="flex items-center gap-2">{!isToday && <button onClick={jumpToToday} className="text-[10px] bg-slate-600 px-2 py-1 rounded text-white hover:bg-slate-500">回到今天</button>}<button onClick={() => changeDate(1)} className={`text-white hover:text-blue-300 ${isToday ? 'invisible' : ''}`}><ChevronRight size={20} /></button></div>
                                 </div>
 
                                 {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
-                                    <button onClick={() => setQuestFilter('all')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => setQuestFilter('base')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
-                                    <button onClick={() => setQuestFilter('job')} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('all');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
                                 </div>
 
                                 {/* Task Form */}
@@ -847,12 +946,22 @@
                                             <select className="px-1 py-1.5 text-xs" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>{Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}</select>
                                             <select className="px-1 py-1.5 text-xs" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}><option value="daily">每日</option><option value="weekly">每週</option><option value="weekend">週末</option><option value="custom">自定義</option><option value="none">一次</option></select>
                                         </div>
-                                        {newTask.repeat === 'custom' && <div className="flex items-center gap-2 bg-slate-700 p-1.5 rounded border border-slate-600"><span className="text-[10px] text-slate-300">每</span><input type="number" min="1" className="w-12 px-1 py-0.5 text-center text-xs bg-slate-800 text-white rounded border border-slate-500" value={newTask.frequency || ''} onChange={(e) => setNewTask({...newTask, frequency: e.target.value})} placeholder="天數" /><span className="text-[10px] text-slate-300">天重置一次</span></div>}
-                                        <div className="flex gap-2"><select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}><option value="10">10 XP ($20Z)</option><option value="20">20 XP ($40Z)</option><option value="30">30 XP ($60Z)</option><option value="50">50 XP ($100Z)</option></select><Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button></div>
+                                        
+                                        {newTask.repeat === 'custom' && (
+                                            <div className="flex items-center gap-2 bg-slate-700 p-1.5 rounded border border-slate-600">
+                                                <span className="text-[10px] text-slate-300">每</span>
+                                                <input type="number" min="1" className="w-12 px-1 py-0.5 text-center text-xs bg-slate-800 text-white rounded border border-slate-500" value={newTask.frequency || ''} onChange={(e) => setNewTask({...newTask, frequency: e.target.value})} placeholder="天數" />
+                                                <span className="text-[10px] text-slate-300">天重置一次</span>
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                             <select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}><option value="10">10 XP ($20Z)</option><option value="20">20 XP ($40Z)</option><option value="30">30 XP ($60Z)</option><option value="50">50 XP ($100Z)</option></select>
+                                            <Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button>
+                                        </div>
                                     </div>
                                 </Card>
 
-                                {/* Quick Import */}
                                 <div className="flex flex-wrap justify-end gap-2">
                                     <button onClick={handleImportUpgradePack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-yellow-300 border border-slate-600 hover:bg-slate-600"><Sparkles size={12} /> 升級包</button>
                                     <button onClick={handleImportEngineerPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-cyan-300 border border-slate-600 hover:bg-slate-600"><HardHat size={12} /> 環工包</button>
@@ -865,7 +974,6 @@
                                     
                                     {renderTaskSection(priorityList, "🔥 重要 / 週期性")}
                                     {renderTaskSection(dailyList, "📅 每日例行")}
-                                    {/* Completed Section - slightly dimmed */}
                                     {completedList.length > 0 && (
                                         <div className="opacity-60 grayscale-[0.5]">
                                             {renderTaskSection(completedList, "✅ 已完成")}
@@ -927,13 +1035,18 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border border-slate-400 transform -translate-x-1/2 z-10"></div>
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
                                                 <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
-                                                <div className="space-y-1.5">
+                                                <div className="space-y-2">
                                                     {entries.map(entry => (
-                                                        <div key={entry.logId} className="bg-white/90 border border-slate-300 p-2 rounded flex items-center justify-between shadow-sm">
-                                                            <span className="text-xs text-slate-700 truncate pr-2">{entry.title}</span>
-                                                            <span className="text-[10px] font-bold text-blue-600 shrink-0">+{entry.xp} XP</span>
+                                                        <div key={entry.logId} className="bg-slate-900 border border-slate-800 p-2 rounded-lg flex items-center justify-between shadow-sm">
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                <span className={`text-xs font-bold truncate ${entry.title.includes('兌換:') ? 'text-yellow-400' : 'text-slate-200'}`}>{entry.title}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                {entry.xp !== 0 && <span className={`text-[10px] font-pixel ${entry.xp > 0 ? 'text-indigo-400' : 'text-red-400'}`}>{entry.xp > 0 ? '+' : ''}{entry.xp} XP</span>}
+                                                                {entry.money !== 0 && <span className={`text-[10px] font-pixel ${entry.money > 0 ? 'text-yellow-400' : 'text-red-400'}`}>{entry.money > 0 ? '+' : ''}${entry.money} Z</span>}
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -954,6 +1067,17 @@
                                     <Button onClick={handleExportData} className="flex-1 text-xs"><Save size={14} /> 存檔</Button>
                                     <label className="flex-1 ro-btn-base px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 bg-gray-100 text-gray-800 border-gray-300 cursor-pointer hover:bg-gray-200"><Upload size={14} /> 讀檔<input type="file" accept=".json" className="hidden" onChange={handleImportData} /></label>
                                 </div>
+                            </div>
+                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2 flex justify-between items-center">
+                                <h4 className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
+                                    {user.sound ? <Volume2 size={14} /> : <VolumeX size={14} />} Sound
+                                </h4>
+                                <button 
+                                    onClick={toggleSound}
+                                    className={`w-10 h-5 flex items-center rounded-full p-1 transition-all ${user.sound ? 'bg-green-500 justify-end' : 'bg-gray-300 justify-start'}`}
+                                >
+                                    <div className="w-3 h-3 bg-white rounded-full shadow-sm"></div>
+                                </button>
                             </div>
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase">Change Job</h4>
