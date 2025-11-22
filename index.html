@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Calendar System</title>
+    <title>LifeRPG - Auto Cycle</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -354,7 +354,7 @@
             const [showSettings, setShowSettings] = React.useState(false);
             const [showCalendar, setShowCalendar] = React.useState(false); // Calendar Modal
 
-            const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
+            const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
@@ -407,7 +407,32 @@
                 const todayString = today.toDateString();
                 const currentWeek = getWeekNumber(today);
                 
+                let updatedTasks = [...tasks];
+                let tasksChanged = false;
+
+                // Auto-Reset Logic (Daily/Weekly/Custom)
                 if (appState.lastVisitDate !== todayString) {
+                    updatedTasks = updatedTasks.map(t => {
+                        // 每日任務: 每天重置
+                        if (t.repeat === 'daily' && t.completed) { 
+                            tasksChanged = true; 
+                            return { ...t, completed: false }; 
+                        }
+                        
+                        // 自定義任務: 檢查是否到期
+                        if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
+                             const lastCompDate = new Date(t.lastCompleted);
+                             const diffTime = Math.abs(today - lastCompDate);
+                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                             
+                             if (diffDays >= (t.frequency || 1)) {
+                                 tasksChanged = true;
+                                 return { ...t, completed: false };
+                             }
+                        }
+                        return t;
+                    });
+
                     // *** Stamina Daily Regen: 每天 +34 ***
                     setUser(prev => ({
                         ...prev,
@@ -419,6 +444,16 @@
                     }));
                     showNotification("新的一天！精力恢復 +34", "info");
                 }
+
+                // 每週任務重置
+                if (appState.lastVisitWeek !== currentWeek) {
+                    updatedTasks = updatedTasks.map(t => {
+                        if (t.repeat === 'weekly' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
+                        return t;
+                    });
+                }
+                
+                if (tasksChanged) { setTasks(updatedTasks); }
                 setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
             }, []);
 
@@ -432,12 +467,19 @@
                 const completedList = dailyCompletions[viewDateStr] || [];
                 const isCompleted = completedList.includes(taskId);
                 
+                // Check if task is "checked" in the persistent sense (for custom reset)
+                const isPersistentCompleted = task.completed;
+
                 if (!isCompleted) {
                     // 完成任務
                     setDailyCompletions(prev => ({
                         ...prev,
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
+                    
+                    // Update persistent state for auto-reset
+                    const nowISO = new Date().toISOString();
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
                     
                     // Log
                     setHistory(prev => [{ 
@@ -448,8 +490,8 @@
                         xp: task.xp, 
                         money: taskMoney, 
                         stamina: taskStamina,
-                        date: viewDateStr, // Record which date it belongs to
-                        completedAt: new Date().toISOString() 
+                        date: viewDateStr, 
+                        completedAt: nowISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -470,6 +512,8 @@
                         [viewDateStr]: prev[viewDateStr].filter(id => id !== taskId)
                     }));
                     
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: false } : t));
+
                     setHistory(prev => {
                         const index = prev.findIndex(h => (h.taskId === task.id || h.title === task.title) && h.date === viewDateStr); // Only remove log for THAT date
                         if (index > -1) {
@@ -563,8 +607,11 @@
                 e.preventDefault();
                 if (!newTask.title.trim()) return;
                 const moneyVal = parseInt(newTask.xp) * 2;
-                setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat }]);
-                setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily' });
+                const frequencyVal = parseInt(newTask.frequency) || 1;
+                setTasks([...tasks, { 
+                    id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat, frequency: frequencyVal 
+                }]);
+                setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
                 showNotification("新增成功", "success");
             };
             const handleAddReward = (e) => {
@@ -579,7 +626,7 @@
 
             // Import/Export
             const handleExportData = () => {
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "3.0" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "3.2" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -620,7 +667,25 @@
             }
             const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }], "新手包");
             const handleImportEngineerPack = () => mergePack([{ id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' }, { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }], "環工包");
-            const handleImportUpgradePack = () => mergePack([{ id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' }, { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' }, { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' }, { id: 3011, title: "研讀環工英文/最新法規", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' }], "升級包");
+            const handleImportUpgradePack = () => {
+                mergePack([
+                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' },
+                    { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3006, title: "收集裝潢靈感 (Pinterest)", category: "general", xp: 15, money: 30, repeat: 'weekly' },
+                    { id: 3007, title: "護眼熱敷 10 分鐘", category: "fitness", xp: 10, money: 15, repeat: 'daily' },
+                    { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' },
+                    { id: 3009, title: "伴侶約會日 (禁談公事)", category: "general", xp: 50, money: 100, repeat: 'weekly' },
+                    { id: 3010, title: "辦公室肩頸伸展", category: "fitness", xp: 15, money: 20, repeat: 'daily' },
+                    { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' },
+                    { id: 3012, title: "預售屋家電/家具比價", category: "finance", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3013, title: "整理電腦檔案/圖資", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
+                    // Updated with custom cycle logic
+                    { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
+                    { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
+                    { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }
+                ], "升級包");
+            };
 
             const handleImportRewardPack = () => {
                 const rewardPack = [ { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny' }, { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny' }, { id: 4004, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny' }, { id: 4005, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny' }, { id: 4006, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny' }, { id: 4007, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny' }, { id: 4009, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny' }, { id: 4010, title: "新家軟裝小物 ($1000內)", reqType: 'job', levelReq: 6, cost: 5000, currency: 'zeny' }, { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina' } ];
@@ -746,8 +811,30 @@
                                         <input type="text" placeholder="新任務..." className="w-full px-2 py-1.5" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} />
                                         <div className="grid grid-cols-2 gap-2">
                                             <select className="px-1 py-1.5 text-xs" value={newTask.category} onChange={(e) => setNewTask({...newTask, category: e.target.value})}>{Object.entries(categories).map(([key, val]) => <option key={key} value={key}>{val.label}</option>)}</select>
-                                            <select className="px-1 py-1.5 text-xs" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}><option value="daily">每日</option><option value="weekly">每週</option><option value="none">一次</option></select>
+                                            <select className="px-1 py-1.5 text-xs" value={newTask.repeat} onChange={(e) => setNewTask({...newTask, repeat: e.target.value})}>
+                                                <option value="daily">每日</option>
+                                                <option value="weekly">每週</option>
+                                                <option value="custom">自定義</option>
+                                                <option value="none">一次</option>
+                                            </select>
                                         </div>
+                                        
+                                        {/* Custom Frequency Input */}
+                                        {newTask.repeat === 'custom' && (
+                                            <div className="flex items-center gap-2 bg-slate-700 p-1.5 rounded border border-slate-600">
+                                                <span className="text-[10px] text-slate-300">每</span>
+                                                <input 
+                                                    type="number" 
+                                                    min="1" 
+                                                    className="w-12 px-1 py-0.5 text-center text-xs bg-slate-800 text-white rounded border border-slate-500"
+                                                    value={newTask.frequency || ''} 
+                                                    onChange={(e) => setNewTask({...newTask, frequency: e.target.value})}
+                                                    placeholder="天數"
+                                                />
+                                                <span className="text-[10px] text-slate-300">天重置一次</span>
+                                            </div>
+                                        )}
+
                                         <div className="flex gap-2">
                                              <select className="flex-1 px-1 py-1.5 text-xs" value={newTask.xp} onChange={(e) => setNewTask({...newTask, xp: e.target.value})}><option value="10">10 XP ($20Z)</option><option value="20">20 XP ($40Z)</option><option value="30">30 XP ($60Z)</option><option value="50">50 XP ($100Z)</option></select>
                                             <Button variant="primary" onClick={handleAddTask} className="flex-1 text-xs"><Plus size={14} /> 接受</Button>
@@ -772,6 +859,11 @@
                                         const xpType = cat.type === 'base' ? 'Base' : 'Job';
                                         const moneyReward = task.money || (task.xp * 2);
                                         const isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
+                                        
+                                        let repeatLabel = "";
+                                        if (task.repeat === 'custom' && task.frequency) {
+                                            repeatLabel = `每${task.frequency}天`;
+                                        }
 
                                         return (
                                             <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${isCompleted ? 'opacity-60 bg-gray-200' : 'bg-white'}`}>
@@ -786,7 +878,10 @@
                                                             <span className="text-[10px] font-pixel text-yellow-600 bg-yellow-50 px-1 rounded border border-yellow-200">+${moneyReward} Z</span>
                                                             {task.stamina > 0 && <span className="text-[10px] font-pixel text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200">+{task.stamina} STA</span>}
                                                         </div>
-                                                        <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</h3>
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-400' : 'text-slate-800'}`}>{task.title}</h3>
+                                                            {repeatLabel && <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded border border-slate-200">{repeatLabel}</span>}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <button onClick={() => handleDeleteTask(task.id)} className="ml-2 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
@@ -897,13 +992,21 @@
                                     </label>
                                 </div>
                             </div>
+                            
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase">Change Job</h4>
                                 <div className="flex gap-2">
-                                    <input type="text" placeholder="新職業..." className="flex-1 px-2 py-1 text-xs" value={newJobTitle} onChange={(e) => setNewJobTitle(e.target.value)} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="手動輸入新職業..." 
+                                        className="flex-1 px-2 py-1 text-xs"
+                                        value={newJobTitle}
+                                        onChange={(e) => setNewJobTitle(e.target.value)}
+                                    />
                                     <Button onClick={confirmJobChange} variant="gold" className="text-xs">變更</Button>
                                 </div>
                             </div>
+
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
                                 <h4 className="text-[10px] font-bold text-slate-500 uppercase">Reset</h4>
                                 <div className="grid grid-cols-1 gap-2">
