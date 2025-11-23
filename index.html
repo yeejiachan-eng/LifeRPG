@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Step Tasks</title>
+    <title>LifeRPG - Smart Cycle</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -131,7 +131,7 @@
         .animate-job-change {
             animation: job-change-shine 1.5s infinite;
         }
-
+        
         /* 日曆樣式 */
         .calendar-day {
             text-align: center;
@@ -265,7 +265,7 @@
         const ProgressBar = ({ current, max, label, height = "h-4", type = "hp" }) => {
             const percentage = Math.min(100, Math.max(0, (current / max) * 100));
             
-            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; 
+            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; // default SP
             if (type === 'hp') barColor = 'bg-gradient-to-b from-red-400 via-red-500 to-red-700';
             if (type === 'stamina') barColor = 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700';
 
@@ -357,6 +357,7 @@
                 };
             });
 
+            // Global Audio State
             window.soundEnabled = user.sound;
 
             function getWeekNumber(d) {
@@ -384,6 +385,7 @@
                 return saved ? JSON.parse(saved) : [
                     { id: 1, title: "遛狗", category: "fitness", xp: 30, money: 50, completed: false, repeat: 'daily' },
                     { id: 2, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, completed: false, repeat: 'daily' },
+                    { id: 3, title: "洗衣服", category: "chores", xp: 40, money: 60, completed: false, repeat: 'weekly' },
                 ];
             });
 
@@ -396,6 +398,7 @@
                 const saved = localStorage.getItem('liferpg-rewards-v2');
                 return saved ? JSON.parse(saved) : [
                     { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, cost: 600, currency: 'zeny', unlocked: false },
+                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', unlocked: false },
                     { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true },
                 ];
             });
@@ -448,6 +451,15 @@
 
             // Migration & Daily Logic
             React.useEffect(() => {
+                // 1. 自動遷移：將特定的「每週」家務轉換為「自定義7天」
+                const choresToConvert = ["打掃浴室", "拖地", "洗遛狗背帶", "換床單", "摺衣服"];
+                setTasks(prevTasks => prevTasks.map(t => {
+                    if (choresToConvert.includes(t.title) && t.repeat === 'weekly') {
+                        return { ...t, repeat: 'custom', frequency: 7 };
+                    }
+                    return t;
+                }));
+
                 const legacyCompleted = tasks.filter(t => t.completed).map(t => t.id);
                 if (legacyCompleted.length > 0) {
                     setDailyCompletions(prev => {
@@ -458,15 +470,6 @@
                     setTasks(prev => prev.map(t => ({ ...t, completed: false })));
                 }
 
-                // 自動刪除重複的「運動」任務
-                setTasks(prev => {
-                    const hasFitness = prev.some(t => t.title === "健身/運動");
-                    if (hasFitness) {
-                        return prev.filter(t => t.title !== "運動");
-                    }
-                    return prev;
-                });
-
                 const today = new Date();
                 const todayString = today.toDateString();
                 const currentWeek = getWeekNumber(today);
@@ -474,23 +477,16 @@
                 let updatedTasks = [...tasks];
                 let tasksChanged = false;
 
-                // Chain Reset Logic (Also resets chainIndex if needed daily)
-                // For simple chain tasks, we reset index to 0 daily if they are 'daily_chain'.
-                // But user asked for "daily reset" of water.
-                updatedTasks = updatedTasks.map(t => {
-                    if (t.chain && t.repeat === 'daily' && appState.lastVisitDate !== todayString) {
-                         return { ...t, chainIndex: 0, completed: false };
-                    }
-                    return t;
-                });
-
+                // Auto-Reset Logic (Daily/Weekly/Custom)
                 if (appState.lastVisitDate !== todayString) {
                     updatedTasks = updatedTasks.map(t => {
+                        // 每日任務: 每天重置
                         if (t.repeat === 'daily' && t.completed) { 
                             tasksChanged = true; 
                             return { ...t, completed: false }; 
                         }
                         
+                        // 自定義任務: 檢查是否到期
                         if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
                              const lastCompDate = new Date(t.lastCompleted);
                              const diffTime = Math.abs(today - lastCompDate);
@@ -504,6 +500,7 @@
                         return t;
                     });
 
+                    // *** Stamina Daily Regen: 每天 +34 ***
                     setUser(prev => ({
                         ...prev,
                         stamina: {
@@ -515,6 +512,7 @@
                     showNotification("新的一天！精力恢復 +34", "info");
                 }
 
+                // 每週任務重置
                 if (appState.lastVisitWeek !== currentWeek) {
                     updatedTasks = updatedTasks.map(t => {
                         if (t.repeat === 'weekly' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
@@ -563,11 +561,6 @@
                 // Chain Logic
                 if (task.chain && task.chain.length > 0) {
                     const currentIndex = task.chainIndex || 0;
-                    
-                    // If already fully completed, do nothing or standard undo?
-                    // Let's say if completed, clicking main button does nothing (use undo button?)
-                    // Or clicking toggles completion state if it was the last step.
-                    // Let's stick to: Click = Advance.
                     
                     if (currentIndex < task.chain.length) {
                         // Advance Step
@@ -792,7 +785,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.1" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.2" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -832,12 +825,9 @@
                 sfx.confirm();
                 showNotification(`已匯入 ${name}`, "success");
             }
-            
-            // UPDATED STARTER PACK WITH WATER CHAIN
             const handleImportStarterPack = () => mergePack([
                 { id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, 
                 { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, 
-                // Chain Task for Water
                 { 
                     id: 1008, 
                     title: "💧 喝水", 
@@ -875,14 +865,15 @@
                     { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
                     { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 },
-                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' },
+                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'custom', frequency: 7 },
                     { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
                     { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 },
                     { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 },
-                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'weekly' },
-                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
+                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'custom', frequency: 7 },
+                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }
                 ], "升級包");
             };
 
@@ -933,10 +924,10 @@
                 const cat = categories[task.category] || categories.general;
                 const xpType = cat.type === 'base' ? 'Base' : 'Job';
                 const moneyReward = task.money || (task.xp * 2);
+                const isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
                 
-                let isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
-                // Override completed check if task is stored as completed (for chains)
-                if (task.completed && task.chain) isCompleted = true;
+                let isPersistentCompleted = task.completed;
+                if (task.chain) isPersistentCompleted = false; // Chains handle their own completion logic
 
                 let repeatLabel = "";
                 if (task.repeat === 'custom' && task.frequency) repeatLabel = `每${task.frequency}天`;
@@ -949,12 +940,19 @@
                 let displayMoney = moneyReward;
                 let chainStepLabel = "";
 
+                // For display in list:
+                // If viewing TODAY, use the current task state.
+                // If viewing HISTORY (not implemented fully for past states), we just show current task config.
+                // But `isCompleted` tells us if it was done on that specific day.
+
                 if (task.chain) {
                     const currentStepIndex = Math.min(task.chainIndex || 0, task.chain.length - 1);
                     const stepData = task.chain[currentStepIndex];
                     
-                    // If fully completed, show last step but marked done
-                    if (task.completed) {
+                    // If fully completed TODAY (or relevant date), show "Done" state
+                    // If not completed, show current step
+                    
+                    if (isCompleted) {
                          displayTitle = `${task.title} - 完成`;
                          chainStepLabel = `(${task.chain.length}/${task.chain.length})`;
                     } else {
@@ -963,6 +961,17 @@
                         displayXP = stepData.xp;
                         displayMoney = stepData.money !== undefined ? stepData.money : (stepData.xp * 2);
                     }
+                }
+                
+                // Calculate countdown for custom tasks
+                let dueLabel = "";
+                if (task.repeat === 'custom' && task.lastCompleted && isCompleted) {
+                    const lastDate = new Date(task.lastCompleted);
+                    const today = new Date();
+                    const diffTime = Math.abs(today - lastDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const daysLeft = (task.frequency || 1) - diffDays;
+                    if (daysLeft > 0) dueLabel = ` (還有${daysLeft}天)`;
                 }
 
                 return (
@@ -991,7 +1000,7 @@
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <h3 className={`font-bold text-sm truncate ${isCompleted ? 'line-through text-slate-500' : 'text-slate-800'}`}>{displayTitle} <span className="text-[10px] text-slate-500 font-normal">{chainStepLabel}</span></h3>
-                                    {repeatLabel && <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded border border-slate-200">{repeatLabel}</span>}
+                                    {(repeatLabel || dueLabel) && <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded border border-slate-200">{repeatLabel}{dueLabel}</span>}
                                 </div>
                             </div>
                         </div>
@@ -1199,7 +1208,7 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
                                                 <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
                                                 <div className="space-y-2">
                                                     {entries.map(entry => (
