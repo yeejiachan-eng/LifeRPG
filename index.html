@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Smart Cycle</title>
+    <title>LifeRPG - Smart Logic</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -131,7 +131,7 @@
         .animate-job-change {
             animation: job-change-shine 1.5s infinite;
         }
-        
+
         /* 日曆樣式 */
         .calendar-day {
             text-align: center;
@@ -265,7 +265,7 @@
         const ProgressBar = ({ current, max, label, height = "h-4", type = "hp" }) => {
             const percentage = Math.min(100, Math.max(0, (current / max) * 100));
             
-            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; // default SP
+            let barColor = 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700'; 
             if (type === 'hp') barColor = 'bg-gradient-to-b from-red-400 via-red-500 to-red-700';
             if (type === 'stamina') barColor = 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-700';
 
@@ -420,6 +420,7 @@
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
+            // Date Management
             const getISODate = (d) => d.toISOString().split('T')[0];
             const [viewDate, setViewDate] = React.useState(new Date()); 
             const viewDateStr = getISODate(viewDate);
@@ -449,25 +450,32 @@
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
             React.useEffect(() => { localStorage.setItem('liferpg-daily-completions', JSON.stringify(dailyCompletions)); }, [dailyCompletions]);
 
-            // Migration & Daily Logic
+            // Migration & Daily Logic & Sync with History
             React.useEffect(() => {
-                // 1. 自動遷移：將特定的「每週」家務轉換為「自定義7天」
-                const choresToConvert = ["打掃浴室", "拖地", "洗遛狗背帶", "換床單", "摺衣服"];
+                // 1. Sync custom tasks state from History if lastCompleted is missing
                 setTasks(prevTasks => prevTasks.map(t => {
-                    if (choresToConvert.includes(t.title) && t.repeat === 'weekly') {
-                        return { ...t, repeat: 'custom', frequency: 7 };
+                    if (t.repeat === 'custom' && !t.lastCompleted) {
+                        // Find latest completion in history
+                        const logs = history.filter(h => h.taskId === t.id || h.title === t.title);
+                        if (logs.length > 0) {
+                            // Sort by date desc
+                            logs.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+                            return { ...t, lastCompleted: logs[0].completedAt, completed: true }; // Assume completed if log exists, let auto-reset handle unchecking
+                        }
                     }
                     return t;
                 }));
 
-                const legacyCompleted = tasks.filter(t => t.completed).map(t => t.id);
+                // 2. Legacy Migration
+                const legacyCompleted = tasks.filter(t => t.completed && t.repeat !== 'custom').map(t => t.id);
                 if (legacyCompleted.length > 0) {
                     setDailyCompletions(prev => {
                         const todayLog = prev[todayStr] || [];
                         const merged = [...new Set([...todayLog, ...legacyCompleted])];
                         return { ...prev, [todayStr]: merged };
                     });
-                    setTasks(prev => prev.map(t => ({ ...t, completed: false })));
+                    // Reset legacy flag for non-custom
+                    setTasks(prev => prev.map(t => t.repeat !== 'custom' ? { ...t, completed: false } : t));
                 }
 
                 const today = new Date();
@@ -477,16 +485,14 @@
                 let updatedTasks = [...tasks];
                 let tasksChanged = false;
 
-                // Auto-Reset Logic (Daily/Weekly/Custom)
+                // Auto-Reset Logic
                 if (appState.lastVisitDate !== todayString) {
                     updatedTasks = updatedTasks.map(t => {
-                        // 每日任務: 每天重置
                         if (t.repeat === 'daily' && t.completed) { 
-                            tasksChanged = true; 
+                            // Daily tasks rely on dailyCompletions, but we reset internal flag just in case
                             return { ...t, completed: false }; 
                         }
                         
-                        // 自定義任務: 檢查是否到期
                         if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
                              const lastCompDate = new Date(t.lastCompleted);
                              const diffTime = Math.abs(today - lastCompDate);
@@ -500,7 +506,6 @@
                         return t;
                     });
 
-                    // *** Stamina Daily Regen: 每天 +34 ***
                     setUser(prev => ({
                         ...prev,
                         stamina: {
@@ -512,17 +517,16 @@
                     showNotification("新的一天！精力恢復 +34", "info");
                 }
 
-                // 每週任務重置
                 if (appState.lastVisitWeek !== currentWeek) {
                     updatedTasks = updatedTasks.map(t => {
-                        if (t.repeat === 'weekly' && t.completed) { tasksChanged = true; return { ...t, completed: false }; }
+                        if (t.repeat === 'weekly') { tasksChanged = true; return { ...t, completed: false }; }
                         return t;
                     });
                 }
                 
                 if (tasksChanged) { setTasks(updatedTasks); }
                 setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
-            }, []);
+            }, []); // Run once on mount
 
             // --- 核心邏輯 ---
             
@@ -533,22 +537,18 @@
                 if(newState) sfx.confirm();
             };
 
-            // Step-Undo Logic
             const handleUndoStep = (e, task) => {
                 e.stopPropagation();
                 sfx.cancel();
                 setTasks(prev => prev.map(t => {
                     if (t.id === task.id) {
                          const newIndex = Math.max(0, (t.chainIndex || 0) - 1);
-                         return { ...t, chainIndex: newIndex, completed: false }; // Uncomplete if it was completed
+                         return { ...t, chainIndex: newIndex, completed: false }; 
                     }
                     return t;
                 }));
-                // Remove log? It's hard to track specific step log without ID.
-                // Simplified: Just deduct rewards.
-                const stepData = task.chain[(task.chainIndex || 0) - 1]; // The step we are undoing
+                const stepData = task.chain[(task.chainIndex || 0) - 1]; 
                 if (stepData) {
-                     // Reverse rewards
                      const revMoney = stepData.money || (stepData.xp * 2);
                      updateUserStatus(-stepData.xp, task.category, -revMoney, 0);
                      showNotification(`已復原步驟 (回收 XP & Zeny)`, "info");
@@ -561,16 +561,10 @@
                 // Chain Logic
                 if (task.chain && task.chain.length > 0) {
                     const currentIndex = task.chainIndex || 0;
-                    
                     if (currentIndex < task.chain.length) {
-                        // Advance Step
                         const stepData = task.chain[currentIndex];
                         const stepMoney = stepData.money !== undefined ? stepData.money : (stepData.xp * 2);
-                        
-                        // Award
                         updateUserStatus(stepData.xp, task.category, stepMoney, 0);
-                        
-                        // Log
                         setHistory(prev => [{ 
                             logId: Date.now(), 
                             taskId: task.id, 
@@ -581,10 +575,7 @@
                             date: viewDateStr, 
                             completedAt: new Date().toISOString() 
                         }, ...prev]);
-
                         sfx.step();
-
-                        // Update Task State
                         const nextIndex = currentIndex + 1;
                         const isNowCompleted = nextIndex >= task.chain.length;
                         
@@ -592,7 +583,6 @@
 
                         if (isNowCompleted) {
                             sfx.success();
-                            // Add to daily completions if fully done
                             setDailyCompletions(prev => ({
                                 ...prev,
                                 [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -617,8 +607,14 @@
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    const nowISO = new Date().toISOString();
-                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
+                    // *** Smart Logic Update: Use View Date for lastCompleted if custom ***
+                    // If I am viewing '2023-10-01' and complete a task, lastCompleted should be that date roughly
+                    // We use viewDate at noon to avoid TZ issues
+                    const completionDate = new Date(viewDate);
+                    completionDate.setHours(12,0,0,0);
+                    const completionISO = completionDate.toISOString();
+
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: completionISO } : t));
                     
                     setHistory(prev => [{ 
                         logId: Date.now(), 
@@ -629,7 +625,7 @@
                         money: taskMoney, 
                         stamina: taskStamina,
                         date: viewDateStr, 
-                        completedAt: nowISO 
+                        completedAt: completionISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -782,10 +778,9 @@
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); setDailyCompletions({}); showNotification("已清除", "info"); setShowSettings(false); } };
 
-            // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.2" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.3" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -825,9 +820,7 @@
                 sfx.confirm();
                 showNotification(`已匯入 ${name}`, "success");
             }
-            const handleImportStarterPack = () => mergePack([
-                { id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, 
-                { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, 
+            const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, 
                 { 
                     id: 1008, 
                     title: "💧 喝水", 
@@ -865,15 +858,15 @@
                     { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
                     { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 },
-                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'custom', frequency: 7 },
+                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' },
                     { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
                     { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
-                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 },
+                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
                     { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 },
-                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'custom', frequency: 7 },
-                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }
+                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'weekly' },
+                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
                 ], "升級包");
             };
 
@@ -925,10 +918,6 @@
                 const xpType = cat.type === 'base' ? 'Base' : 'Job';
                 const moneyReward = task.money || (task.xp * 2);
                 const isCompleted = (dailyCompletions[viewDateStr] || []).includes(task.id);
-                
-                let isPersistentCompleted = task.completed;
-                if (task.chain) isPersistentCompleted = false; // Chains handle their own completion logic
-
                 let repeatLabel = "";
                 if (task.repeat === 'custom' && task.frequency) repeatLabel = `每${task.frequency}天`;
                 if (task.repeat === 'weekend') repeatLabel = `週末`;
@@ -940,17 +929,9 @@
                 let displayMoney = moneyReward;
                 let chainStepLabel = "";
 
-                // For display in list:
-                // If viewing TODAY, use the current task state.
-                // If viewing HISTORY (not implemented fully for past states), we just show current task config.
-                // But `isCompleted` tells us if it was done on that specific day.
-
                 if (task.chain) {
                     const currentStepIndex = Math.min(task.chainIndex || 0, task.chain.length - 1);
                     const stepData = task.chain[currentStepIndex];
-                    
-                    // If fully completed TODAY (or relevant date), show "Done" state
-                    // If not completed, show current step
                     
                     if (isCompleted) {
                          displayTitle = `${task.title} - 完成`;
@@ -1107,8 +1088,8 @@
                                 {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
                                     <button onClick={() => {sfx.click(); setQuestFilter('all');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
                                 </div>
 
                                 {/* Task Form */}
@@ -1208,7 +1189,7 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
                                                 <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
                                                 <div className="space-y-2">
                                                     {entries.map(entry => (
