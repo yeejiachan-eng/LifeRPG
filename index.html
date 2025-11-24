@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - v5.0 Final</title>
+    <title>LifeRPG - v4.9 Fixed</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -68,6 +68,7 @@
             border-radius: 6px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8);
             position: relative;
+            max-width: 100%; /* 防止爆版 */
         }
 
         .ro-title-bar {
@@ -205,7 +206,7 @@
                 playTone(600, 'square', 0.1, 0, 0.05);
                 playTone(1200, 'square', 0.1, 0.05, 0.05);
             },
-            step: () => { 
+            step: () => { // Step sound
                 playTone(900, 'sine', 0.05, 0, 0.05);
                 playTone(1500, 'sine', 0.05, 0.05, 0.05);
             },
@@ -420,6 +421,7 @@
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
+            // Date Management
             const getISODate = (d) => {
                 const year = d.getFullYear();
                 const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -506,7 +508,6 @@
                         const newTasks = prevTasks.map(t => {
                             if (t.repeat === 'daily') {
                                 let shouldReset = false;
-                                
                                 if (t.chain && (t.chainIndex > 0 || t.completed)) {
                                     if (t.lastCompleted) {
                                         const lastDateStr = getISODate(new Date(t.lastCompleted));
@@ -516,7 +517,7 @@
                                     }
                                 }
                                 else if (t.completed) {
-                                    shouldReset = true;
+                                    shouldReset = true; 
                                 }
                                 
                                 if (shouldReset) {
@@ -525,7 +526,7 @@
                                         ...t, 
                                         completed: false, 
                                         chainIndex: 0,
-                                        lastCompleted: undefined 
+                                        lastCompleted: undefined
                                     };
                                 }
                             }
@@ -546,7 +547,6 @@
                     });
 
                     if (lastDate !== nowString) {
-                        // Stamina Regen
                         setUser(prevUser => ({
                             ...prevUser,
                             stamina: {
@@ -607,7 +607,7 @@
                 setTasks(prev => prev.map(t => {
                     if (t.id === task.id) {
                          const newIndex = Math.max(0, (t.chainIndex || 0) - 1);
-                         return { ...t, chainIndex: newIndex, completed: false }; 
+                         return { ...t, chainIndex: newIndex, completed: false }; // Uncomplete if it was completed
                     }
                     return t;
                 }));
@@ -654,6 +654,7 @@
                         
                         // ** KEY FIX: Use View Date for lastCompleted **
                         const completionDate = new Date(viewDate); 
+                        // Force set time to noon to avoid timezone shift on date string conversion
                         completionDate.setHours(12,0,0,0);
                         const completionISO = completionDate.toISOString();
 
@@ -661,6 +662,7 @@
 
                         if (isNowCompleted) {
                             sfx.success();
+                            // Add to daily completions if fully done
                             setDailyCompletions(prev => ({
                                 ...prev,
                                 [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -685,8 +687,12 @@
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    const nowISO = new Date().toISOString();
-                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
+                    // Use View Date
+                    const completionDate = new Date(viewDate);
+                    completionDate.setHours(12,0,0,0);
+                    const completionISO = completionDate.toISOString();
+
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: completionISO } : t));
                     
                     setHistory(prev => [{ 
                         logId: Date.now(), 
@@ -697,7 +703,7 @@
                         money: taskMoney, 
                         stamina: taskStamina,
                         date: viewDateStr, 
-                        completedAt: nowISO 
+                        completedAt: completionISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -761,7 +767,13 @@
                     showNotification(`已兌換 ${reward.title} (-$${cost} Z)`, "gold");
                     
                     setHistory(prev => [{ 
-                        logId: Date.now(), title: `兌換: ${reward.title}`, category: "general", xp: 0, money: -cost, isReward: true, completedAt: new Date().toISOString() 
+                        logId: Date.now(), 
+                        title: `兌換: ${reward.title}`, 
+                        category: "general", 
+                        xp: 0, 
+                        money: -cost,
+                        isReward: true,
+                        completedAt: new Date().toISOString() 
                     }, ...prev]);
 
                 } else if (currency === 'stamina') {
@@ -769,22 +781,40 @@
                         // Punishment Logic
                         if (window.confirm(`精力不足 (${Math.floor(user.stamina?.current)}/${cost})！\n強行發動將造成「虛弱狀態」，並扣除 $2000 Zeny 作為懲罰。\n\n確定要強行釋放嗎？`)) {
                             const penaltyZeny = 2000;
+                            
+                            // Deduct Zeny, Set Stamina to 0 (by subtracting current)
                             updateUserStatus(0, "general", -penaltyZeny, -user.stamina.current);
+                            
                             showNotification(`體力透支... 損失 $${penaltyZeny} Z`, "error");
                             sfx.cancel(); 
 
                             setHistory(prev => [{ 
-                                logId: Date.now(), title: `⚠ 強制釋放 (虛弱)`, category: "general", xp: 0, money: -penaltyZeny, stamina: -Math.floor(user.stamina.current), isReward: true, completedAt: new Date().toISOString() 
+                                logId: Date.now(), 
+                                title: `⚠ 強制釋放 (虛弱)`, 
+                                category: "general", 
+                                xp: 0, 
+                                money: -penaltyZeny,
+                                stamina: -Math.floor(user.stamina.current),
+                                isReward: true,
+                                completedAt: new Date().toISOString() 
                             }, ...prev]);
                         }
                         return; 
                     } else {
+                        // Normal Logic
                         sfx.success(); 
                         updateUserStatus(0, "general", 0, -cost);
                         showNotification(`聖人模式 (-${cost} STA)`, "success");
 
                         setHistory(prev => [{ 
-                            logId: Date.now(), title: `兌換: ${reward.title}`, category: "general", xp: 0, money: 0, stamina: -cost, isReward: true, completedAt: new Date().toISOString() 
+                            logId: Date.now(), 
+                            title: `兌換: ${reward.title}`, 
+                            category: "general", 
+                            xp: 0, 
+                            money: 0,
+                            stamina: -cost,
+                            isReward: true,
+                            completedAt: new Date().toISOString() 
                         }, ...prev]);
                     }
                 }
@@ -868,7 +898,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.0" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.9" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -1200,8 +1230,8 @@
                                 {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
                                     <button onClick={() => {sfx.click(); setQuestFilter('all');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
                                 </div>
 
                                 {/* Task Form */}
@@ -1259,16 +1289,18 @@
                                             <select className="col-span-1 px-1 py-1.5 text-xs" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}><option value="base">Req: Base Lv</option><option value="job">Req: Job Lv</option></select>
                                             <input type="number" placeholder="等級需求" className="col-span-1 px-2 py-1.5" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
                                         </div>
+                                        {/* Fix for Mobile Layout */}
                                         <div className="flex gap-2">
                                             <input type="number" placeholder="價格 ($Z)" className="flex-1 px-2 py-1.5" value={newReward.cost || ''} onChange={(e) => setNewReward({...newReward, cost: e.target.value})} />
                                             <select className="w-24 px-1 py-1.5 text-xs" value={newReward.currency} onChange={(e) => setNewReward({...newReward, currency: e.target.value})}><option value="zeny">Zeny</option><option value="stamina">STA</option></select>
-                                            <Button variant="primary" onClick={handleAddReward} className="w-full py-2 text-xs"><Plus size={14} /> 上架商品</Button>
                                         </div>
+                                        {/* Button on new row */}
+                                        <Button variant="primary" onClick={handleAddReward} className="w-full py-2 text-xs"><Plus size={14} /> 上架商品</Button>
                                     </div>
                                 </Card>
                                 <div className="flex justify-end"><button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button></div>
                                 <div className="grid grid-cols-1 gap-2">
-                                    {rewards.sort((a,b) => (a.cost || 0) - (b.cost || 0)).map((reward) => {
+                                    {rewards.sort((a,b) => (a.currency === b.currency) ? (a.cost || 0) - (b.cost || 0) : a.currency === 'stamina' ? 1 : -1).map((reward) => {
                                         const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
                                         const cost = reward.cost || 0;
                                         const currency = reward.currency || 'zeny';
@@ -1276,10 +1308,10 @@
                                         return (
                                             <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-white' : 'bg-gray-200 opacity-80'}`}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`p-1.5 rounded ${isUnlocked ? 'text-blue-600 bg-blue-100' : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}</div>
+                                                    <div className={`p-1.5 rounded ${isUnlocked ? (currency === 'stamina' ? 'text-emerald-600 bg-emerald-100' : 'text-blue-600 bg-blue-100') : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}</div>
                                                     <div>
                                                         <h3 className="font-bold text-sm text-slate-700">{reward.title}</h3>
-                                                        <div className="flex items-center gap-2 text-[10px]"><span className={`font-pixel ${isUnlocked ? (canAfford ? 'text-yellow-600 font-bold' : 'text-red-500') : 'text-slate-400'}`}>{currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}</span>{!isUnlocked && <span className="text-red-400">Req: Lv.{reward.levelReq}</span>}</div>
+                                                        <div className="flex items-center gap-2 text-[10px]"><span className={`font-pixel ${isUnlocked ? (canAfford ? (currency === 'stamina' ? 'text-emerald-600 font-bold' : 'text-yellow-600 font-bold') : 'text-red-500') : 'text-slate-400'}`}>{currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}</span>{!isUnlocked && <span className="text-red-400">Req: Lv.{reward.levelReq}</span>}</div>
                                                     </div>
                                                 </div>
                                                 {isUnlocked ? <Button onClick={() => handleRedeemReward(reward)} variant={canAfford ? (currency === 'stamina' ? "primary" : "green") : "outline"} disabled={!canAfford && currency === 'zeny'} className="text-xs py-1 px-2">購買</Button> : <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>}
