@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Smart Logic</title>
+    <title>LifeRPG - Final Fixed</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -450,17 +450,15 @@
             React.useEffect(() => { localStorage.setItem('liferpg-app-state', JSON.stringify(appState)); }, [appState]);
             React.useEffect(() => { localStorage.setItem('liferpg-daily-completions', JSON.stringify(dailyCompletions)); }, [dailyCompletions]);
 
-            // Migration & Daily Logic & Sync with History
+            // Migration & Daily Logic & Sync with History & VISIBILITY CHECK
             React.useEffect(() => {
-                // 1. Sync custom tasks state from History if lastCompleted is missing
+                // 1. Sync custom tasks
                 setTasks(prevTasks => prevTasks.map(t => {
                     if (t.repeat === 'custom' && !t.lastCompleted) {
-                        // Find latest completion in history
                         const logs = history.filter(h => h.taskId === t.id || h.title === t.title);
                         if (logs.length > 0) {
-                            // Sort by date desc
                             logs.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
-                            return { ...t, lastCompleted: logs[0].completedAt, completed: true }; // Assume completed if log exists, let auto-reset handle unchecking
+                            return { ...t, lastCompleted: logs[0].completedAt, completed: true };
                         }
                     }
                     return t;
@@ -474,58 +472,101 @@
                         const merged = [...new Set([...todayLog, ...legacyCompleted])];
                         return { ...prev, [todayStr]: merged };
                     });
-                    // Reset legacy flag for non-custom
                     setTasks(prev => prev.map(t => t.repeat !== 'custom' ? { ...t, completed: false } : t));
                 }
 
-                const today = new Date();
-                const todayString = today.toDateString();
-                const currentWeek = getWeekNumber(today);
-                
-                let updatedTasks = [...tasks];
-                let tasksChanged = false;
+                // 3. Duplicate Removal
+                setTasks(prev => {
+                    const hasFitness = prev.some(t => t.title === "健身/運動");
+                    if (hasFitness) {
+                        return prev.filter(t => t.title !== "運動");
+                    }
+                    return prev;
+                });
 
-                // Auto-Reset Logic
-                if (appState.lastVisitDate !== todayString) {
-                    updatedTasks = updatedTasks.map(t => {
-                        if (t.repeat === 'daily' && t.completed) { 
-                            // Daily tasks rely on dailyCompletions, but we reset internal flag just in case
-                            return { ...t, completed: false }; 
-                        }
+                // --- Define Check Function ---
+                const checkAndReset = () => {
+                    const now = new Date();
+                    const nowString = now.toDateString();
+                    const currentWeekNo = getWeekNumber(now);
+                    
+                    // Read fresh state from localStorage to avoid stale closures if app was backgrounded for days
+                    const savedState = JSON.parse(localStorage.getItem('liferpg-app-state') || '{}');
+                    const lastDate = savedState.lastVisitDate;
+                    const lastWeek = savedState.lastVisitWeek;
+                    let tasksChanged = false;
+
+                    if (lastDate !== nowString) {
+                        // Daily Reset
+                        // Note: tasks state here might be stale in the closure of useEffect if we don't use functional updates or refs.
+                        // However, for simple forced re-render and logic, we can just update based on current knowledge.
+                        // Better yet, we rely on React's state updates to trigger re-renders.
+                        // But here we need to UPDATE the tasks state based on the time diff.
                         
-                        if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
-                             const lastCompDate = new Date(t.lastCompleted);
-                             const diffTime = Math.abs(today - lastCompDate);
-                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                             
-                             if (diffDays >= (t.frequency || 1)) {
-                                 tasksChanged = true;
-                                 return { ...t, completed: false };
-                             }
-                        }
-                        return t;
-                    });
+                        setTasks(prevTasks => prevTasks.map(t => {
+                            if (t.repeat === 'daily' && t.completed) { 
+                                tasksChanged = true;
+                                return { ...t, completed: false }; // Internal flag reset (visuals depend on dailyCompletions though)
+                            }
+                            if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
+                                const lastCompDate = new Date(t.lastCompleted);
+                                const diffTime = Math.abs(now - lastCompDate);
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                if (diffDays >= (t.frequency || 1)) {
+                                    tasksChanged = true;
+                                    return { ...t, completed: false };
+                                }
+                            }
+                            return t;
+                        }));
 
-                    setUser(prev => ({
-                        ...prev,
-                        stamina: {
-                            ...prev.stamina,
-                            max: prev.stamina?.max || 100,
-                            current: Math.min((prev.stamina?.max || 100), (prev.stamina?.current || 0) + 34)
+                        // Stamina Regen
+                        setUser(prevUser => ({
+                            ...prevUser,
+                            stamina: {
+                                ...prevUser.stamina,
+                                max: prevUser.stamina?.max || 100,
+                                current: Math.min((prevUser.stamina?.max || 100), (prevUser.stamina?.current || 0) + 34)
+                            }
+                        }));
+                        
+                        // Update App State
+                        setAppState({ lastVisitDate: nowString, lastVisitWeek: currentWeekNo });
+                        
+                        // Only show notification if dates actually changed
+                        if (lastDate !== nowString) {
+                            showNotification("歡迎回來！精力已恢復 +34", "info");
                         }
-                    }));
-                    showNotification("新的一天！精力恢復 +34", "info");
-                }
+                    }
 
-                if (appState.lastVisitWeek !== currentWeek) {
-                    updatedTasks = updatedTasks.map(t => {
-                        if (t.repeat === 'weekly') { tasksChanged = true; return { ...t, completed: false }; }
-                        return t;
-                    });
-                }
-                
-                if (tasksChanged) { setTasks(updatedTasks); }
-                setAppState({ lastVisitDate: todayString, lastVisitWeek: currentWeek });
+                    if (lastWeek !== currentWeekNo) {
+                         setTasks(prevTasks => prevTasks.map(t => {
+                            if (t.repeat === 'weekly') { return { ...t, completed: false }; }
+                            return t;
+                        }));
+                        setAppState(prev => ({ ...prev, lastVisitWeek: currentWeekNo }));
+                    }
+                };
+
+                // Run immediately on mount
+                checkAndReset();
+
+                // Run on visibility change (waking up from background)
+                const handleVisibilityChange = () => {
+                    if (document.visibilityState === 'visible') {
+                        checkAndReset();
+                        // Force a view update for today's date in case it changed while backgrounded
+                        const newTodayStr = getISODate(new Date());
+                        if (newTodayStr !== todayStr) {
+                            // reload page or just force update? simplified:
+                            window.location.reload(); 
+                        }
+                    }
+                };
+
+                document.addEventListener("visibilitychange", handleVisibilityChange);
+                return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+
             }, []); // Run once on mount
 
             // --- 核心邏輯 ---
@@ -543,7 +584,7 @@
                 setTasks(prev => prev.map(t => {
                     if (t.id === task.id) {
                          const newIndex = Math.max(0, (t.chainIndex || 0) - 1);
-                         return { ...t, chainIndex: newIndex, completed: false }; 
+                         return { ...t, chainIndex: newIndex, completed: false }; // Uncomplete if it was completed
                     }
                     return t;
                 }));
@@ -561,10 +602,16 @@
                 // Chain Logic
                 if (task.chain && task.chain.length > 0) {
                     const currentIndex = task.chainIndex || 0;
+                    
                     if (currentIndex < task.chain.length) {
+                        // Advance Step
                         const stepData = task.chain[currentIndex];
                         const stepMoney = stepData.money !== undefined ? stepData.money : (stepData.xp * 2);
+                        
+                        // Award
                         updateUserStatus(stepData.xp, task.category, stepMoney, 0);
+                        
+                        // Log
                         setHistory(prev => [{ 
                             logId: Date.now(), 
                             taskId: task.id, 
@@ -575,7 +622,10 @@
                             date: viewDateStr, 
                             completedAt: new Date().toISOString() 
                         }, ...prev]);
+
                         sfx.step();
+
+                        // Update Task State
                         const nextIndex = currentIndex + 1;
                         const isNowCompleted = nextIndex >= task.chain.length;
                         
@@ -583,6 +633,7 @@
 
                         if (isNowCompleted) {
                             sfx.success();
+                            // Add to daily completions if fully done
                             setDailyCompletions(prev => ({
                                 ...prev,
                                 [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -778,9 +829,10 @@
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); setDailyCompletions({}); showNotification("已清除", "info"); setShowSettings(false); } };
 
+            // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.3" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.5" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -837,12 +889,11 @@
                 },
                 { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }
             ], "新手包");
-
             const handleImportEngineerPack = () => {
                 if(!window.confirm("匯入環工與理財任務？")) return;
                 mergePack([
                     { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, 
-                    { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' }, 
                     { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, 
                     { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }
                 ], "環工包");
@@ -871,7 +922,20 @@
             };
 
             const handleImportRewardPack = () => {
-                const rewardPack = [ { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny' }, { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny' }, { id: 4004, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny' }, { id: 4005, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny' }, { id: 4006, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny' }, { id: 4007, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny' }, { id: 4009, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny' }, { id: 4010, title: "新家軟裝小物 ($1000內)", reqType: 'job', levelReq: 6, cost: 5000, currency: 'zeny' }, { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina' } ];
+                const rewardPack = [
+                    { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny', unlocked: false },
+                    { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny', unlocked: false },
+                    { id: 4003, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
+                    { id: 4004, title: "無所事事 (純放空 1小時)", reqType: 'base', levelReq: 1, cost: 100, currency: 'zeny', unlocked: false },
+                    
+                    { id: 4020, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', unlocked: false },
+                    { id: 4022, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny', unlocked: false },
+                    { id: 4024, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', unlocked: false },
+                    { id: 4025, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', unlocked: false },
+                    
+                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true }
+                ];
+
                 const currentRewards = Array.isArray(rewards) ? rewards : [];
                 const newR = rewardPack.filter(n => !currentRewards.some(e => e.title.trim() === n.title.trim())).map(r => ({...r, id: Date.now() + Math.random()}));
                 if (newR.length === 0) { showNotification("獎勵已存在", "info"); return; }
@@ -1212,7 +1276,7 @@
                         )}
                     </main>
 
-                    {/* Settings Modal */}
+                    {/* Settings & Modals */}
                     <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="System">
                         <div className="space-y-4 w-full">
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
