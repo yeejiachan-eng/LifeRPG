@@ -420,7 +420,6 @@
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
-            // Date Management
             const getISODate = (d) => d.toISOString().split('T')[0];
             const [viewDate, setViewDate] = React.useState(new Date()); 
             const viewDateStr = getISODate(viewDate);
@@ -498,12 +497,13 @@
 
                     if (lastDate !== nowString) {
                         // Daily Reset
-                        // Note: tasks state here might be stale in the closure of useEffect if we don't use functional updates or refs.
-                        // However, for simple forced re-render and logic, we can just update based on current knowledge.
-                        // Better yet, we rely on React's state updates to trigger re-renders.
-                        // But here we need to UPDATE the tasks state based on the time diff.
-                        
                         setTasks(prevTasks => prevTasks.map(t => {
+                            // Daily Chain Reset
+                             if (t.chain && t.repeat === 'daily') {
+                                 tasksChanged = true;
+                                 return { ...t, chainIndex: 0, completed: false };
+                            }
+
                             if (t.repeat === 'daily' && t.completed) { 
                                 tasksChanged = true;
                                 return { ...t, completed: false }; // Internal flag reset (visuals depend on dailyCompletions though)
@@ -541,7 +541,7 @@
 
                     if (lastWeek !== currentWeekNo) {
                          setTasks(prevTasks => prevTasks.map(t => {
-                            if (t.repeat === 'weekly') { return { ...t, completed: false }; }
+                            if (t.repeat === 'weekly') { tasksChanged = true; return { ...t, completed: false }; }
                             return t;
                         }));
                         setAppState(prev => ({ ...prev, lastVisitWeek: currentWeekNo }));
@@ -578,6 +578,7 @@
                 if(newState) sfx.confirm();
             };
 
+            // Step-Undo Logic
             const handleUndoStep = (e, task) => {
                 e.stopPropagation();
                 sfx.cancel();
@@ -588,8 +589,11 @@
                     }
                     return t;
                 }));
-                const stepData = task.chain[(task.chainIndex || 0) - 1]; 
+                // Remove log? It's hard to track specific step log without ID.
+                // Simplified: Just deduct rewards.
+                const stepData = task.chain[(task.chainIndex || 0) - 1]; // The step we are undoing
                 if (stepData) {
+                     // Reverse rewards
                      const revMoney = stepData.money || (stepData.xp * 2);
                      updateUserStatus(-stepData.xp, task.category, -revMoney, 0);
                      showNotification(`已復原步驟 (回收 XP & Zeny)`, "info");
@@ -659,8 +663,6 @@
                     }));
                     
                     // *** Smart Logic Update: Use View Date for lastCompleted if custom ***
-                    // If I am viewing '2023-10-01' and complete a task, lastCompleted should be that date roughly
-                    // We use viewDate at noon to avoid TZ issues
                     const completionDate = new Date(viewDate);
                     completionDate.setHours(12,0,0,0);
                     const completionISO = completionDate.toISOString();
@@ -832,7 +834,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.5" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.6" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -909,15 +911,15 @@
                     { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
                     { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 },
-                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' },
+                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'custom', frequency: 7 },
                     { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
                     { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
-                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
+                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 },
                     { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 },
-                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'weekly' },
-                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
+                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'custom', frequency: 7 },
+                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }
                 ], "升級包");
             };
 
@@ -1091,12 +1093,24 @@
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const firstDay = new Date(year, month, 1).getDay();
                 const days = [];
+                
+                // Padding
                 for (let i = 0; i < firstDay; i++) days.push(<div key={`pad-${i}`} />);
+                
+                // Days
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const isSelected = dateStr === viewDateStr;
                     const hasData = dailyCompletions[dateStr] && dailyCompletions[dateStr].length > 0;
-                    days.push(<button key={i} onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
+                    days.push(
+                        <button 
+                            key={i} 
+                            onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }}
+                            className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}
+                        >
+                            {i}
+                        </button>
+                    );
                 }
                 return days;
             };
@@ -1152,8 +1166,8 @@
                                 {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
                                     <button onClick={() => {sfx.click(); setQuestFilter('all');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
                                 </div>
 
                                 {/* Task Form */}
