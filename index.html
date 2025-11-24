@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Final v4.8</title>
+    <title>LifeRPG - v4.9 Fixed</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -459,22 +459,6 @@
             React.useEffect(() => {
                 // 1. Sync custom tasks
                 setTasks(prevTasks => prevTasks.map(t => {
-                    // 確保喝水任務有 chain 結構
-                    if (t.id === 1008 && (!t.chain || t.chain.length === 0)) {
-                        return {
-                            ...t,
-                            title: "💧 喝水", 
-                            repeat: 'daily',
-                            chainIndex: 0,
-                            completed: false,
-                            chain: [
-                                { label: "600cc", xp: 5, money: 5 },
-                                { label: "1200cc", xp: 5, money: 5 },
-                                { label: "2000cc (完成)", xp: 10, money: 20 }
-                            ]
-                        };
-                    }
-                    
                     if (t.repeat === 'custom' && !t.lastCompleted) {
                         const logs = history.filter(h => h.taskId === t.id || h.title === t.title);
                         if (logs.length > 0) {
@@ -486,13 +470,14 @@
                 }));
 
                 // 2. Legacy Migration
-                const legacyCompleted = tasks.filter(t => t.completed && t.repeat !== 'custom' && t.repeat !== 'daily').map(t => t.id);
+                const legacyCompleted = tasks.filter(t => t.completed && t.repeat !== 'custom').map(t => t.id);
                 if (legacyCompleted.length > 0) {
                     setDailyCompletions(prev => {
                         const todayLog = prev[todayStr] || [];
                         const merged = [...new Set([...todayLog, ...legacyCompleted])];
                         return { ...prev, [todayStr]: merged };
                     });
+                    setTasks(prev => prev.map(t => t.repeat !== 'custom' ? { ...t, completed: false } : t));
                 }
 
                 // 3. Duplicate Removal
@@ -515,59 +500,59 @@
                     const lastDate = savedState.lastVisitDate;
                     const lastWeek = savedState.lastVisitWeek;
                     
-                    // *** 強制每日任務校正 Logic v4.8 ***
-                    // 強制將所有每日任務的內部狀態與今日同步
-                    
-                    setTasks(prevTasks => prevTasks.map(t => {
-                        if (t.repeat === 'daily') {
-                            let shouldReset = false;
+                    // *** 強制每日任務校正 Logic v4.7 ***
+                    // 不依賴 lastDate，直接檢查每個 daily 任務
+                    let forcedTasksChanged = false;
 
-                            // 檢查是否為連鎖任務
-                            if (t.chain) {
-                                // 如果任務有進度 (index > 0) 或標示已完成
-                                if (t.chainIndex > 0 || t.completed) {
-                                    // 檢查 lastCompleted 是否存在且是否為今天
-                                    if (!t.lastCompleted) {
-                                        shouldReset = true; // 無紀錄 = 視為舊的
+                    setTasks(prevTasks => {
+                        const newTasks = prevTasks.map(t => {
+                            // 如果是每日任務，且標記為完成
+                            // 檢查最後完成時間是否為今天
+                            if (t.repeat === 'daily') {
+                                let shouldReset = false;
+                                
+                                // 1. 檢查連鎖任務
+                                if (t.chain && (t.chainIndex > 0 || t.completed)) {
+                                    if (t.lastCompleted) {
+                                        const lastDateStr = getISODate(new Date(t.lastCompleted));
+                                        if (lastDateStr !== nowISO) shouldReset = true;
                                     } else {
-                                        // 比較日期字串 YYYY-MM-DD
-                                        const taskDate = new Date(t.lastCompleted);
-                                        const taskDateStr = getISODate(taskDate);
-                                        if (taskDateStr !== nowISO) {
-                                            shouldReset = true; // 日期非今日 = 舊的
-                                        }
+                                        shouldReset = true; // 沒有日期但有進度 = 舊的
                                     }
                                 }
-                            } 
-                            // 普通每日任務
-                            else if (t.completed) {
-                                // 檢查 dailyCompletions 雖然是 UI 依據，但內部 completed 旗標也必須重置
-                                // 這裡我們一律重置內部旗標，UI 顯示由 dailyCompletions 控制 (或統一重置)
-                                shouldReset = true;
+                                // 2. 檢查普通每日任務 (雖然主要依賴 dailyCompletions，但 internal completed flag 也需重置)
+                                else if (t.completed) {
+                                    shouldReset = true; // 每日任務的 completed flag 在新的一天都應該是 false
+                                }
+                                
+                                if (shouldReset) {
+                                    forcedTasksChanged = true;
+                                    return { 
+                                        ...t, 
+                                        completed: false, 
+                                        chainIndex: 0,
+                                        lastCompleted: undefined // 清除日期以便今日重新打卡
+                                    };
+                                }
                             }
-
-                            if (shouldReset) {
-                                return { 
-                                    ...t, 
-                                    completed: false, 
-                                    chainIndex: 0,
-                                    lastCompleted: undefined 
-                                };
+                            
+                            // 自定義週期任務檢查 (保持原樣)
+                            if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
+                                 const lastCompDate = new Date(t.lastCompleted);
+                                 const diffTime = Math.abs(now - lastCompDate);
+                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                 if (diffDays >= (t.frequency || 1)) {
+                                     forcedTasksChanged = true;
+                                     return { ...t, completed: false };
+                                 }
                             }
-                        }
-                        
-                        // 自定義週期任務 (保持原樣)
-                        if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
-                             const lastCompDate = new Date(t.lastCompleted);
-                             const diffTime = Math.abs(now - lastCompDate);
-                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                             if (diffDays >= (t.frequency || 1)) {
-                                 return { ...t, completed: false };
-                             }
-                        }
-                        return t;
-                    }));
+                            
+                            return t;
+                        });
+                        return newTasks;
+                    });
 
+                    // 如果日期變更了，執行全域重置 (Stamina 等)
                     if (lastDate !== nowString) {
                         // Stamina Regen
                         setUser(prevUser => ({
@@ -582,7 +567,7 @@
                         setAppState({ lastVisitDate: nowString, lastVisitWeek: currentWeekNo });
                         
                         if (lastDate !== nowString) {
-                            showNotification("新的一天！任務已重置 & 精力 +34", "info");
+                            showNotification("歡迎回來！精力已恢復 +34", "info");
                         }
                     }
 
@@ -621,24 +606,6 @@
                 setUser({...user, sound: newState});
                 window.soundEnabled = newState;
                 if(newState) sfx.confirm();
-            };
-            
-            const forceDailyReset = () => {
-                if(!window.confirm("確定要強制執行「新的一天」重置程序嗎？\n這將清除所有今日任務進度。")) return;
-                
-                setTasks(prev => prev.map(t => {
-                    if (t.repeat === 'daily') return { ...t, completed: false, chainIndex: 0, lastCompleted: undefined };
-                    return t;
-                }));
-                setDailyCompletions(prev => {
-                    // 清除今日的紀錄
-                    const newLog = {...prev};
-                    delete newLog[todayStr];
-                    return newLog;
-                });
-                
-                showNotification("已強制重置每日任務！", "success");
-                setShowSettings(false);
             };
 
             // Step-Undo Logic
@@ -695,6 +662,7 @@
                         
                         // ** KEY FIX: Use View Date for lastCompleted **
                         const completionDate = new Date(viewDate); 
+                        // Force set time to noon to avoid timezone shift on date string conversion
                         completionDate.setHours(12,0,0,0);
                         const completionISO = completionDate.toISOString();
 
@@ -702,6 +670,7 @@
 
                         if (isNowCompleted) {
                             sfx.success();
+                            // Add to daily completions if fully done
                             setDailyCompletions(prev => ({
                                 ...prev,
                                 [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -726,8 +695,12 @@
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    const nowISO = new Date().toISOString();
-                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
+                    // Use View Date
+                    const completionDate = new Date(viewDate);
+                    completionDate.setHours(12,0,0,0);
+                    const completionISO = completionDate.toISOString();
+
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: completionISO } : t));
                     
                     setHistory(prev => [{ 
                         logId: Date.now(), 
@@ -738,7 +711,7 @@
                         money: taskMoney, 
                         stamina: taskStamina,
                         date: viewDateStr, 
-                        completedAt: nowISO 
+                        completedAt: completionISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -802,7 +775,13 @@
                     showNotification(`已兌換 ${reward.title} (-$${cost} Z)`, "gold");
                     
                     setHistory(prev => [{ 
-                        logId: Date.now(), title: `兌換: ${reward.title}`, category: "general", xp: 0, money: -cost, isReward: true, completedAt: new Date().toISOString() 
+                        logId: Date.now(), 
+                        title: `兌換: ${reward.title}`, 
+                        category: "general", 
+                        xp: 0, 
+                        money: -cost,
+                        isReward: true,
+                        completedAt: new Date().toISOString() 
                     }, ...prev]);
 
                 } else if (currency === 'stamina') {
@@ -810,22 +789,40 @@
                         // Punishment Logic
                         if (window.confirm(`精力不足 (${Math.floor(user.stamina?.current)}/${cost})！\n強行發動將造成「虛弱狀態」，並扣除 $2000 Zeny 作為懲罰。\n\n確定要強行釋放嗎？`)) {
                             const penaltyZeny = 2000;
+                            
+                            // Deduct Zeny, Set Stamina to 0 (by subtracting current)
                             updateUserStatus(0, "general", -penaltyZeny, -user.stamina.current);
+                            
                             showNotification(`體力透支... 損失 $${penaltyZeny} Z`, "error");
-                            sfx.cancel(); 
+                            sfx.cancel(); // Or a 'damage' sound if available, default cancel is low pitch
 
                             setHistory(prev => [{ 
-                                logId: Date.now(), title: `⚠ 強制釋放 (虛弱)`, category: "general", xp: 0, money: -penaltyZeny, stamina: -Math.floor(user.stamina.current), isReward: true, completedAt: new Date().toISOString() 
+                                logId: Date.now(), 
+                                title: `⚠ 強制釋放 (虛弱)`, 
+                                category: "general", 
+                                xp: 0, 
+                                money: -penaltyZeny,
+                                stamina: -Math.floor(user.stamina.current),
+                                isReward: true,
+                                completedAt: new Date().toISOString() 
                             }, ...prev]);
                         }
                         return; 
                     } else {
+                        // Normal Logic
                         sfx.success(); 
                         updateUserStatus(0, "general", 0, -cost);
                         showNotification(`聖人模式 (-${cost} STA)`, "success");
 
                         setHistory(prev => [{ 
-                            logId: Date.now(), title: `兌換: ${reward.title}`, category: "general", xp: 0, money: 0, stamina: -cost, isReward: true, completedAt: new Date().toISOString() 
+                            logId: Date.now(), 
+                            title: `兌換: ${reward.title}`, 
+                            category: "general", 
+                            xp: 0, 
+                            money: 0,
+                            stamina: -cost,
+                            isReward: true,
+                            completedAt: new Date().toISOString() 
                         }, ...prev]);
                     }
                 }
@@ -909,7 +906,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.8" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.9" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -949,12 +946,28 @@
                 sfx.confirm();
                 showNotification(`已匯入 ${name}`, "success");
             }
-            const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, { id: 1008, title: "喝水 2000cc", category: "fitness", xp: 10, money: 15, repeat: 'daily' }, { id: 1014, title: "午餐後刷牙", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }], "新手包");
+            const handleImportStarterPack = () => mergePack([{ id: 1001, title: "遛狗", category: "fitness", xp: 30, money: 50, repeat: 'daily' }, { id: 1002, title: "健身/運動", category: "fitness", xp: 50, money: 100, stamina: 34, repeat: 'daily' }, 
+                { 
+                    id: 1008, 
+                    title: "💧 喝水", 
+                    category: "fitness", 
+                    xp: 5, 
+                    money: 5, 
+                    repeat: 'daily',
+                    chainIndex: 0,
+                    chain: [
+                        { label: "600cc", xp: 5, money: 5 },
+                        { label: "1200cc", xp: 5, money: 5 },
+                        { label: "2000cc (完成)", xp: 10, money: 20 }
+                    ]
+                },
+                { id: 1009, title: "檢視開銷", category: "finance", xp: 20, money: 30, repeat: 'daily' }
+            ], "新手包");
             const handleImportEngineerPack = () => {
                 if(!window.confirm("匯入環工與理財任務？")) return;
                 mergePack([
                     { id: 2001, title: "考取環工技師執照 (PE)", category: "knowledge", xp: 100, money: 2000, repeat: 'none' }, 
-                    { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 2004, title: "番茄鐘環評 (4x25m)", category: "knowledge", xp: 20, money: 40, repeat: 'daily' }, 
                     { id: 2006, title: "零支出挑戰", category: "finance", xp: 30, money: 60, repeat: 'daily' }, 
                     { id: 2008, title: "轉帳工程款", category: "finance", xp: 50, money: 200, repeat: 'weekly' }
                 ], "環工包");
@@ -970,11 +983,15 @@
                     { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
                     { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 },
-                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' },
+                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'custom', frequency: 7 },
                     { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
-                    { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' }
+                    { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
+                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 },
+                    { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 },
+                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'custom', frequency: 7 },
+                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }
                 ], "升級包");
             };
 
@@ -1152,7 +1169,15 @@
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const isSelected = dateStr === viewDateStr;
                     const hasData = dailyCompletions[dateStr] && dailyCompletions[dateStr].length > 0;
-                    days.push(<button key={i} onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
+                    days.push(
+                        <button 
+                            key={i} 
+                            onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }}
+                            className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}
+                        >
+                            {i}
+                        </button>
+                    );
                 }
                 return days;
             };
@@ -1208,8 +1233,8 @@
                                 {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
                                     <button onClick={() => {sfx.click(); setQuestFilter('all');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
                                 </div>
 
                                 {/* Task Form */}
@@ -1267,11 +1292,13 @@
                                             <select className="col-span-1 px-1 py-1.5 text-xs" value={newReward.reqType} onChange={(e) => setNewReward({...newReward, reqType: e.target.value})}><option value="base">Req: Base Lv</option><option value="job">Req: Job Lv</option></select>
                                             <input type="number" placeholder="等級需求" className="col-span-1 px-2 py-1.5" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
                                         </div>
+                                        
+                                        {/* Mobile UI Fix: Stack button at bottom */}
                                         <div className="flex gap-2">
-                                            <input type="number" placeholder="價格 ($Z)" className="flex-1 px-2 py-1.5" value={newReward.cost || ''} onChange={(e) => setNewReward({...newReward, cost: e.target.value})} />
-                                            <select className="w-20 px-1 py-1.5 text-xs" value={newReward.currency} onChange={(e) => setNewReward({...newReward, currency: e.target.value})}><option value="zeny">Zeny</option><option value="stamina">STA</option></select>
-                                            <Button variant="primary" onClick={handleAddReward} className="text-xs"><Plus size={14} /> 上架</Button>
+                                            <input type="number" placeholder="價格" className="flex-1 px-2 py-1.5" value={newReward.cost || ''} onChange={(e) => setNewReward({...newReward, cost: e.target.value})} />
+                                            <select className="w-24 px-1 py-1.5 text-xs" value={newReward.currency} onChange={(e) => setNewReward({...newReward, currency: e.target.value})}><option value="zeny">Zeny</option><option value="stamina">STA</option></select>
                                         </div>
+                                        <Button variant="primary" onClick={handleAddReward} className="w-full py-2 text-xs"><Plus size={14} /> 上架商品</Button>
                                     </div>
                                 </Card>
                                 <div className="flex justify-end"><button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button></div>
@@ -1332,7 +1359,7 @@
                         )}
                     </main>
 
-                    {/* Settings Modal */}
+                    {/* Settings & Modals */}
                     <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="System">
                         <div className="space-y-4 w-full">
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
