@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Final Fixed v4.6</title>
+    <title>LifeRPG - Final Fixed v4.7</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -421,7 +421,12 @@
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
             // Date Management
-            const getISODate = (d) => d.toISOString().split('T')[0];
+            const getISODate = (d) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
             const [viewDate, setViewDate] = React.useState(new Date()); 
             const viewDateStr = getISODate(viewDate);
             const todayStr = getISODate(new Date());
@@ -489,55 +494,66 @@
                     const now = new Date();
                     const nowString = now.toDateString();
                     const currentWeekNo = getWeekNumber(now);
-                    const nowISO = getISODate(now); // YYYY-MM-DD for comparison
+                    const nowISO = getISODate(now);
                     
                     const savedState = JSON.parse(localStorage.getItem('liferpg-app-state') || '{}');
                     const lastDate = savedState.lastVisitDate;
                     const lastWeek = savedState.lastVisitWeek;
-                    let tasksChanged = false;
+                    
+                    // *** 強制每日任務校正 Logic v4.7 ***
+                    // 不依賴 lastDate，直接檢查每個 daily 任務
+                    let forcedTasksChanged = false;
 
-                    if (lastDate !== nowString) {
-                        // Daily Reset Logic:
-                        // Force check every task. If it's a daily task and was marked "completed" yesterday in memory, reset it.
-                        // BUT crucially, for chain tasks, if last completed date is not TODAY, reset chain.
-                        
-                        setTasks(prevTasks => prevTasks.map(t => {
-                            // Self-Correction for Daily Chain Tasks:
-                            // If it is a daily chain task, and it is completed or in progress (index > 0)
-                            // Check if the last update was BEFORE today.
-                            if (t.chain && t.repeat === 'daily') {
-                                 // Get last completed date from task property if exists, or fallback
-                                 // For chain tasks, we update 'lastCompleted' on every step now (see handleToggleTask)
-                                 if (t.lastCompleted) {
-                                     const lastDateStr = getISODate(new Date(t.lastCompleted));
-                                     if (lastDateStr !== nowISO) {
-                                         tasksChanged = true;
-                                         return { ...t, chainIndex: 0, completed: false };
-                                     }
-                                 } else if (t.chainIndex > 0) {
-                                     // If no date but has progress, assume it's old and reset
-                                     tasksChanged = true;
-                                     return { ...t, chainIndex: 0, completed: false };
-                                 }
-                            }
-
-                            if (t.repeat === 'daily' && t.completed) { 
-                                tasksChanged = true;
-                                return { ...t, completed: false }; 
-                            }
-                            
-                            if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
-                                const lastCompDate = new Date(t.lastCompleted);
-                                const diffTime = Math.abs(now - lastCompDate);
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                if (diffDays >= (t.frequency || 1)) {
-                                    tasksChanged = true;
-                                    return { ...t, completed: false };
+                    setTasks(prevTasks => {
+                        const newTasks = prevTasks.map(t => {
+                            // 如果是每日任務，且標記為完成
+                            // 檢查最後完成時間是否為今天
+                            if (t.repeat === 'daily') {
+                                let shouldReset = false;
+                                
+                                // 1. 檢查連鎖任務
+                                if (t.chain && (t.chainIndex > 0 || t.completed)) {
+                                    if (t.lastCompleted) {
+                                        const lastDateStr = getISODate(new Date(t.lastCompleted));
+                                        if (lastDateStr !== nowISO) shouldReset = true;
+                                    } else {
+                                        shouldReset = true; // 沒有日期但有進度 = 舊的
+                                    }
+                                }
+                                // 2. 檢查普通每日任務 (雖然主要依賴 dailyCompletions，但 internal completed flag 也需重置)
+                                else if (t.completed) {
+                                    shouldReset = true; // 每日任務的 completed flag 在新的一天都應該是 false
+                                }
+                                
+                                if (shouldReset) {
+                                    forcedTasksChanged = true;
+                                    return { 
+                                        ...t, 
+                                        completed: false, 
+                                        chainIndex: 0,
+                                        lastCompleted: undefined // 清除日期以便今日重新打卡
+                                    };
                                 }
                             }
+                            
+                            // 自定義週期任務檢查 (保持原樣)
+                            if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
+                                 const lastCompDate = new Date(t.lastCompleted);
+                                 const diffTime = Math.abs(now - lastCompDate);
+                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                 if (diffDays >= (t.frequency || 1)) {
+                                     forcedTasksChanged = true;
+                                     return { ...t, completed: false };
+                                 }
+                            }
+                            
                             return t;
-                        }));
+                        });
+                        return newTasks;
+                    });
 
+                    // 如果日期變更了，執行全域重置 (Stamina 等)
+                    if (lastDate !== nowString) {
                         // Stamina Regen
                         setUser(prevUser => ({
                             ...prevUser,
@@ -549,15 +565,12 @@
                         }));
                         
                         setAppState({ lastVisitDate: nowString, lastVisitWeek: currentWeekNo });
-                        
-                        if (lastDate !== nowString) {
-                            showNotification("歡迎回來！精力已恢復 +34", "info");
-                        }
+                        showNotification("新的一天！任務已重置 & 精力 +34", "info");
                     }
 
                     if (lastWeek !== currentWeekNo) {
                          setTasks(prevTasks => prevTasks.map(t => {
-                            if (t.repeat === 'weekly') { tasksChanged = true; return { ...t, completed: false }; }
+                            if (t.repeat === 'weekly') { return { ...t, completed: false }; }
                             return t;
                         }));
                         setAppState(prev => ({ ...prev, lastVisitWeek: currentWeekNo }));
@@ -571,7 +584,6 @@
                 const handleVisibilityChange = () => {
                     if (document.visibilityState === 'visible') {
                         checkAndReset();
-                        // Force reload if date changed to ensure UI sync
                         const newTodayStr = getISODate(new Date());
                         if (newTodayStr !== todayStr) {
                             window.location.reload(); 
@@ -644,12 +656,18 @@
                         // Update Task State
                         const nextIndex = currentIndex + 1;
                         const isNowCompleted = nextIndex >= task.chain.length;
-                        const completionISO = new Date().toISOString();
                         
+                        // ** KEY FIX: Use View Date for lastCompleted **
+                        const completionDate = new Date(viewDate); 
+                        // Force set time to noon to avoid timezone shift on date string conversion
+                        completionDate.setHours(12,0,0,0);
+                        const completionISO = completionDate.toISOString();
+
                         setTasks(prev => prev.map(t => t.id === taskId ? { ...t, chainIndex: nextIndex, completed: isNowCompleted, lastCompleted: completionISO } : t));
 
                         if (isNowCompleted) {
                             sfx.success();
+                            // Add to daily completions if fully done
                             setDailyCompletions(prev => ({
                                 ...prev,
                                 [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -674,8 +692,12 @@
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    const nowISO = new Date().toISOString();
-                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
+                    // Use View Date
+                    const completionDate = new Date(viewDate);
+                    completionDate.setHours(12,0,0,0);
+                    const completionISO = completionDate.toISOString();
+
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: completionISO } : t));
                     
                     setHistory(prev => [{ 
                         logId: Date.now(), 
@@ -686,7 +708,7 @@
                         money: taskMoney, 
                         stamina: taskStamina,
                         date: viewDateStr, 
-                        completedAt: nowISO 
+                        completedAt: completionISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -839,9 +861,10 @@
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); setDailyCompletions({}); showNotification("已清除", "info"); setShowSettings(false); } };
 
+            // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.6" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.7" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -873,6 +896,7 @@
                 reader.readAsText(file);
             };
 
+            // Import Packs
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
                 const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random()}));
@@ -1100,12 +1124,24 @@
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const firstDay = new Date(year, month, 1).getDay();
                 const days = [];
+                
+                // Padding
                 for (let i = 0; i < firstDay; i++) days.push(<div key={`pad-${i}`} />);
+                
+                // Days
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const isSelected = dateStr === viewDateStr;
                     const hasData = dailyCompletions[dateStr] && dailyCompletions[dateStr].length > 0;
-                    days.push(<button key={i} onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
+                    days.push(
+                        <button 
+                            key={i} 
+                            onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }}
+                            className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}
+                        >
+                            {i}
+                        </button>
+                    );
                 }
                 return days;
             };
@@ -1161,8 +1197,8 @@
                                 {/* Filter */}
                                 <div className="flex justify-center gap-2 mb-2">
                                     <button onClick={() => {sfx.click(); setQuestFilter('all');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'all' ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-500 border-slate-300'}`}>全部</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活 (Base)</button>
-                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯 (Job)</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('base');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'base' ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-500 border-slate-300'}`}>生活</button>
+                                    <button onClick={() => {sfx.click(); setQuestFilter('job');}} className={`px-3 py-1 rounded-full text-[10px] font-bold border ${questFilter === 'job' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-300'}`}>職涯</button>
                                 </div>
 
                                 {/* Task Form */}
@@ -1262,7 +1298,7 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
                                                 <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
                                                 <div className="space-y-2">
                                                     {entries.map(entry => (
