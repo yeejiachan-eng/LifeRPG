@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Final Fixed</title>
+    <title>LifeRPG - Final Fixed v4.6</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -420,6 +420,7 @@
             const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
+            // Date Management
             const getISODate = (d) => d.toISOString().split('T')[0];
             const [viewDate, setViewDate] = React.useState(new Date()); 
             const viewDateStr = getISODate(viewDate);
@@ -488,26 +489,43 @@
                     const now = new Date();
                     const nowString = now.toDateString();
                     const currentWeekNo = getWeekNumber(now);
+                    const nowISO = getISODate(now); // YYYY-MM-DD for comparison
                     
-                    // Read fresh state from localStorage to avoid stale closures if app was backgrounded for days
                     const savedState = JSON.parse(localStorage.getItem('liferpg-app-state') || '{}');
                     const lastDate = savedState.lastVisitDate;
                     const lastWeek = savedState.lastVisitWeek;
                     let tasksChanged = false;
 
                     if (lastDate !== nowString) {
-                        // Daily Reset
+                        // Daily Reset Logic:
+                        // Force check every task. If it's a daily task and was marked "completed" yesterday in memory, reset it.
+                        // BUT crucially, for chain tasks, if last completed date is not TODAY, reset chain.
+                        
                         setTasks(prevTasks => prevTasks.map(t => {
-                            // Daily Chain Reset
-                             if (t.chain && t.repeat === 'daily') {
-                                 tasksChanged = true;
-                                 return { ...t, chainIndex: 0, completed: false };
+                            // Self-Correction for Daily Chain Tasks:
+                            // If it is a daily chain task, and it is completed or in progress (index > 0)
+                            // Check if the last update was BEFORE today.
+                            if (t.chain && t.repeat === 'daily') {
+                                 // Get last completed date from task property if exists, or fallback
+                                 // For chain tasks, we update 'lastCompleted' on every step now (see handleToggleTask)
+                                 if (t.lastCompleted) {
+                                     const lastDateStr = getISODate(new Date(t.lastCompleted));
+                                     if (lastDateStr !== nowISO) {
+                                         tasksChanged = true;
+                                         return { ...t, chainIndex: 0, completed: false };
+                                     }
+                                 } else if (t.chainIndex > 0) {
+                                     // If no date but has progress, assume it's old and reset
+                                     tasksChanged = true;
+                                     return { ...t, chainIndex: 0, completed: false };
+                                 }
                             }
 
                             if (t.repeat === 'daily' && t.completed) { 
                                 tasksChanged = true;
-                                return { ...t, completed: false }; // Internal flag reset (visuals depend on dailyCompletions though)
+                                return { ...t, completed: false }; 
                             }
+                            
                             if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
                                 const lastCompDate = new Date(t.lastCompleted);
                                 const diffTime = Math.abs(now - lastCompDate);
@@ -530,10 +548,8 @@
                             }
                         }));
                         
-                        // Update App State
                         setAppState({ lastVisitDate: nowString, lastVisitWeek: currentWeekNo });
                         
-                        // Only show notification if dates actually changed
                         if (lastDate !== nowString) {
                             showNotification("歡迎回來！精力已恢復 +34", "info");
                         }
@@ -555,10 +571,9 @@
                 const handleVisibilityChange = () => {
                     if (document.visibilityState === 'visible') {
                         checkAndReset();
-                        // Force a view update for today's date in case it changed while backgrounded
+                        // Force reload if date changed to ensure UI sync
                         const newTodayStr = getISODate(new Date());
                         if (newTodayStr !== todayStr) {
-                            // reload page or just force update? simplified:
                             window.location.reload(); 
                         }
                     }
@@ -589,11 +604,8 @@
                     }
                     return t;
                 }));
-                // Remove log? It's hard to track specific step log without ID.
-                // Simplified: Just deduct rewards.
-                const stepData = task.chain[(task.chainIndex || 0) - 1]; // The step we are undoing
+                const stepData = task.chain[(task.chainIndex || 0) - 1]; 
                 if (stepData) {
-                     // Reverse rewards
                      const revMoney = stepData.money || (stepData.xp * 2);
                      updateUserStatus(-stepData.xp, task.category, -revMoney, 0);
                      showNotification(`已復原步驟 (回收 XP & Zeny)`, "info");
@@ -632,12 +644,12 @@
                         // Update Task State
                         const nextIndex = currentIndex + 1;
                         const isNowCompleted = nextIndex >= task.chain.length;
+                        const completionISO = new Date().toISOString();
                         
-                        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, chainIndex: nextIndex, completed: isNowCompleted, lastCompleted: isNowCompleted ? new Date().toISOString() : t.lastCompleted } : t));
+                        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, chainIndex: nextIndex, completed: isNowCompleted, lastCompleted: completionISO } : t));
 
                         if (isNowCompleted) {
                             sfx.success();
-                            // Add to daily completions if fully done
                             setDailyCompletions(prev => ({
                                 ...prev,
                                 [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
@@ -662,12 +674,8 @@
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    // *** Smart Logic Update: Use View Date for lastCompleted if custom ***
-                    const completionDate = new Date(viewDate);
-                    completionDate.setHours(12,0,0,0);
-                    const completionISO = completionDate.toISOString();
-
-                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: completionISO } : t));
+                    const nowISO = new Date().toISOString();
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
                     
                     setHistory(prev => [{ 
                         logId: Date.now(), 
@@ -678,7 +686,7 @@
                         money: taskMoney, 
                         stamina: taskStamina,
                         date: viewDateStr, 
-                        completedAt: completionISO 
+                        completedAt: nowISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -831,7 +839,6 @@
             const handleDeleteReward = (id) => { setRewards(rewards.filter(r => r.id !== id)); };
             const handleClearHistory = () => { if(window.confirm("清除紀錄？")) { setHistory([]); setDailyCompletions({}); showNotification("已清除", "info"); setShowSettings(false); } };
 
-            // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
                 const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "4.6" };
@@ -911,15 +918,15 @@
                     { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 },
                     { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 },
-                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'custom', frequency: 7 },
+                    { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' },
                     { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' },
                     { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
                     { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' },
-                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 },
+                    { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'weekly' },
                     { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 },
-                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'custom', frequency: 7 },
-                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }
+                    { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'weekly' },
+                    { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
                 ], "升級包");
             };
 
@@ -1093,24 +1100,12 @@
                 const daysInMonth = new Date(year, month + 1, 0).getDate();
                 const firstDay = new Date(year, month, 1).getDay();
                 const days = [];
-                
-                // Padding
                 for (let i = 0; i < firstDay; i++) days.push(<div key={`pad-${i}`} />);
-                
-                // Days
                 for (let i = 1; i <= daysInMonth; i++) {
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const isSelected = dateStr === viewDateStr;
                     const hasData = dailyCompletions[dateStr] && dailyCompletions[dateStr].length > 0;
-                    days.push(
-                        <button 
-                            key={i} 
-                            onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }}
-                            className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}
-                        >
-                            {i}
-                        </button>
-                    );
+                    days.push(<button key={i} onClick={() => { sfx.click(); setViewDate(new Date(dateStr)); setShowCalendar(false); }} className={`calendar-day ${isSelected ? 'selected' : 'hover:bg-slate-300'} ${hasData ? 'has-data' : ''} ${dateStr === todayStr ? 'today' : ''}`}>{i}</button>);
                 }
                 return days;
             };
@@ -1267,7 +1262,7 @@
                                     <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-slate-600">
                                         {Object.entries(getHistoryByDate()).map(([date, entries]) => (
                                             <div key={date} className="relative pl-8">
-                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-700 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
+                                                <div className="absolute left-1.5 top-0 w-3 h-3 bg-slate-500 rounded-full border-2 border-slate-950 transform -translate-x-1/2 z-10"></div>
                                                 <div className="mb-2"><span className="text-[10px] font-bold text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{date}</span></div>
                                                 <div className="space-y-2">
                                                     {entries.map(entry => (
@@ -1290,7 +1285,7 @@
                         )}
                     </main>
 
-                    {/* Settings & Modals */}
+                    {/* Settings Modal */}
                     <Modal isOpen={showSettings} onClose={() => setShowSettings(false)} title="System">
                         <div className="space-y-4 w-full">
                             <div className="bg-white p-3 rounded border border-slate-300 space-y-2">
