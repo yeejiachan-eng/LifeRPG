@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - v5.2 Fixed</title>
+    <title>LifeRPG - Final Fixed v5.4</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -16,7 +16,7 @@
     <style>
         /* --- 全局設定 --- */
         * {
-            box-sizing: border-box; /* 關鍵：確保 padding 不會撐大寬度 */
+            box-sizing: border-box;
         }
 
         html, body {
@@ -45,7 +45,7 @@
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
-            max-width: 100vw; /* 強制最大寬度 */
+            max-width: 100vw;
         }
 
         /* 像素字體 */
@@ -73,8 +73,8 @@
             border-radius: 6px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8);
             position: relative;
-            width: 100%; /* 確保佔滿容器 */
-            max-width: 100%; /* 防止爆版 */
+            width: 100%;
+            max-width: 100%;
         }
 
         .ro-title-bar {
@@ -180,7 +180,7 @@
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery,
-            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, ArrowRight
+            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, ArrowRight, Star: StarIcon
         } = LucideReact;
 
         // --- Audio System ---
@@ -507,8 +507,12 @@
                     const lastDate = savedState.lastVisitDate;
                     const lastWeek = savedState.lastVisitWeek;
                     
-                    // *** 強制每日任務校正 Logic v4.7 ***
-                    let forcedTasksChanged = false;
+                    // *** 強制每日任務校正 Logic v5.3 ***
+                    const getDaysDiff = (date1, date2) => {
+                        const d1 = new Date(date1); d1.setHours(0,0,0,0);
+                        const d2 = new Date(date2); d2.setHours(0,0,0,0);
+                        return Math.floor((d1 - d2) / (1000 * 60 * 60 * 24));
+                    }
 
                     setTasks(prevTasks => {
                         const newTasks = prevTasks.map(t => {
@@ -527,7 +531,6 @@
                                 }
                                 
                                 if (shouldReset) {
-                                    forcedTasksChanged = true;
                                     return { 
                                         ...t, 
                                         completed: false, 
@@ -538,11 +541,8 @@
                             }
                             
                             if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
-                                 const lastCompDate = new Date(t.lastCompleted);
-                                 const diffTime = Math.abs(now - lastCompDate);
-                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                 if (diffDays >= (t.frequency || 1)) {
-                                     forcedTasksChanged = true;
+                                 const daysPassed = getDaysDiff(now, new Date(t.lastCompleted));
+                                 if (daysPassed >= (t.frequency || 1)) {
                                      return { ...t, completed: false };
                                  }
                             }
@@ -604,6 +604,12 @@
                 setUser({...user, sound: newState});
                 window.soundEnabled = newState;
                 if(newState) sfx.confirm();
+            };
+
+            // Toggle Favorite
+            const toggleFavorite = (taskId) => {
+                sfx.click();
+                setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isFavorite: !t.isFavorite } : t));
             };
 
             // Step-Undo Logic
@@ -692,8 +698,12 @@
                         [viewDateStr]: [...(prev[viewDateStr] || []), taskId]
                     }));
                     
-                    const nowISO = new Date().toISOString();
-                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: nowISO } : t));
+                    // Use View Date
+                    const completionDate = new Date(viewDate);
+                    completionDate.setHours(12,0,0,0);
+                    const completionISO = completionDate.toISOString();
+
+                    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: true, lastCompleted: completionISO } : t));
                     
                     setHistory(prev => [{ 
                         logId: Date.now(), 
@@ -704,7 +714,7 @@
                         money: taskMoney, 
                         stamina: taskStamina,
                         date: viewDateStr, 
-                        completedAt: nowISO 
+                        completedAt: completionISO 
                     }, ...prev]);
                     
                     updateUserStatus(task.xp, task.category, taskMoney, taskStamina);
@@ -857,7 +867,7 @@
                 if (!newTask.title.trim()) return;
                 const moneyVal = parseInt(newTask.xp) * 2;
                 const frequencyVal = parseInt(newTask.frequency) || 1;
-                setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat, frequency: frequencyVal }]);
+                setTasks([...tasks, { id: Date.now(), title: newTask.title, category: newTask.category, xp: parseInt(newTask.xp), money: moneyVal, repeat: newTask.repeat, frequency: frequencyVal, isFavorite: false }]);
                 setNewTask({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
                 sfx.confirm();
                 showNotification("新增成功", "success");
@@ -876,7 +886,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.1" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.4" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -910,7 +920,7 @@
 
             const mergePack = (pack, name) => {
                 const currentTasks = Array.isArray(tasks) ? tasks : [];
-                const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random()}));
+                const newT = pack.filter(n => !currentTasks.some(e => e.title.trim() === n.title.trim())).map(t => ({...t, id: Date.now() + Math.random(), isFavorite: false}));
                 if (newT.length === 0) { showNotification("任務已存在", "info"); return; }
                 setTasks(p => [...p, ...newT]);
                 sfx.confirm();
@@ -929,7 +939,7 @@
 
             const handleImportUpgradePack = () => {
                 mergePack([
-                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' }, { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 }, { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }, { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'weekly' }, { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' }, { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' }, { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 }, { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'weekly' }, { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'weekly' }
+                    { id: 3003, title: "更新履歷/作品集", category: "knowledge", xp: 50, money: 200, repeat: 'none' }, { id: 3004, title: "核對信用卡帳單", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3005, title: "查詢房貸利率/政策", category: "finance", xp: 20, money: 40, repeat: 'weekly' }, { id: 3008, title: "斷捨離：丟掉 3 樣雜物", category: "chores", xp: 20, money: 30, repeat: 'weekly' }, { id: 3011, title: "研讀環工英文/最新法規 30分鐘", category: "knowledge", xp: 30, money: 50, repeat: 'weekly' }, { id: 3014, title: "丟垃圾", category: "chores", xp: 10, money: 20, repeat: 'daily' }, { id: 3015, title: "剪頭髮 (每3週)", category: "general", xp: 50, money: 100, repeat: 'custom', frequency: 21 }, { id: 3016, title: "剪指甲 (每2週)", category: "fitness", xp: 20, money: 40, repeat: 'custom', frequency: 14 }, { id: 3020, title: "換床單", category: "chores", xp: 40, money: 80, repeat: 'custom', frequency: 7 }, { id: 3021, title: "用牙線 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 3022, title: "戴維持器 (每晚)", category: "fitness", xp: 10, money: 20, repeat: 'daily' }, { id: 3023, title: "吃自備低GI餐 (午)", category: "fitness", xp: 20, money: 40, repeat: 'daily' }, { id: 3024, title: "吃自備低GI餐 (晚)", category: "fitness", xp: 20, money: 40, repeat: 'daily' }, { id: 3025, title: "摺衣服", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }, { id: 3026, title: "吸地", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 3 }, { id: 3027, title: "拖地", category: "chores", xp: 30, money: 60, repeat: 'custom', frequency: 7 }, { id: 3028, title: "洗遛狗背帶", category: "chores", xp: 20, money: 40, repeat: 'custom', frequency: 7 }
                 ], "升級包");
             };
 
@@ -938,12 +948,16 @@
                     { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny', unlocked: false },
                     { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny', unlocked: false },
                     { id: 4003, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
+                    { id: 4004, title: "無所事事 (純放空 1小時)", reqType: 'base', levelReq: 1, cost: 100, currency: 'zeny', unlocked: false },
+                    
                     { id: 4020, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', unlocked: false },
                     { id: 4022, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny', unlocked: false },
                     { id: 4024, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', unlocked: false },
                     { id: 4025, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', unlocked: false },
+                    
                     { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true }
                 ];
+
                 const currentRewards = Array.isArray(rewards) ? rewards : [];
                 const newR = rewardPack.filter(n => !currentRewards.some(e => e.title.trim() === n.title.trim())).map(r => ({...r, id: Date.now() + Math.random()}));
                 if (newR.length === 0) { showNotification("獎勵已存在", "info"); return; }
@@ -1019,17 +1033,31 @@
                 // Calculate countdown for custom tasks
                 let dueLabel = "";
                 if (task.repeat === 'custom' && task.lastCompleted && isCompleted) {
+                    // v5.3 Fix: use calendar day diff
+                    const getDaysDiff = (date1, date2) => {
+                        const d1 = new Date(date1); d1.setHours(0,0,0,0);
+                        const d2 = new Date(date2); d2.setHours(0,0,0,0);
+                        return Math.floor((d1 - d2) / (1000 * 60 * 60 * 24));
+                    }
+                    
                     const lastDate = new Date(task.lastCompleted);
                     const today = new Date();
-                    const diffTime = Math.abs(today - lastDate);
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const diffDays = getDaysDiff(today, lastDate);
                     const daysLeft = (task.frequency || 1) - diffDays;
-                    if (daysLeft > 0) dueLabel = ` (還有${daysLeft}天)`;
+                    if (daysLeft > 0) dueLabel = ` (${daysLeft}天後)`;
                 }
 
                 return (
                     <div key={task.id} className={`relative flex items-center justify-between p-3 ro-window ${isCompleted ? 'opacity-50 bg-gray-300 border-gray-400' : 'bg-white'}`}>
                         <div className="flex items-center gap-3 flex-1 min-w-0">
+                             {/* Favorite Button */}
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(task.id); }}
+                                className={`shrink-0 ${task.isFavorite ? 'text-yellow-400' : 'text-slate-300 hover:text-yellow-200'}`}
+                             >
+                                <StarIcon size={16} fill={task.isFavorite ? "currentColor" : "none"} />
+                             </button>
+
                              <button 
                                 onClick={(e) => handleToggleTask(task.id)} 
                                 className={`shrink-0 h-6 w-6 rounded shadow-sm flex items-center justify-center border transition-all active:scale-95 ${isCompleted ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-300 hover:border-blue-400'}`}
@@ -1039,7 +1067,7 @@
                             
                             {/* Undo Step Button for Chain Tasks */}
                             {task.chain && (task.chainIndex || 0) > 0 && !isCompleted && (
-                                <button onClick={(e) => handleUndoStep(e, task)} className="absolute left-8 -ml-1 text-slate-400 hover:text-red-400">
+                                <button onClick={(e) => handleUndoStep(e, task)} className="absolute left-14 -ml-1 text-slate-400 hover:text-red-400">
                                     <RotateCcw size={10} />
                                 </button>
                             )}
@@ -1082,15 +1110,19 @@
                 // 2. Split into Completed and Active
                 const activeList = baseList.filter(t => !completedIds.includes(t.id));
                 const completedList = baseList.filter(t => completedIds.includes(t.id));
+                
+                // 3. Extract Favorites
+                const favorites = activeList.filter(t => t.isFavorite);
+                const nonFavorites = activeList.filter(t => !t.isFavorite);
 
-                // 3. Split Active into Priority (Periodic) vs Daily
-                const priorityList = activeList.filter(t => t.repeat !== 'daily');
-                const dailyList = activeList.filter(t => t.repeat === 'daily');
+                // 4. Split Active into Priority (Periodic) vs Daily
+                const priorityList = nonFavorites.filter(t => t.repeat !== 'daily');
+                const dailyList = nonFavorites.filter(t => t.repeat === 'daily');
 
-                return { priorityList, dailyList, completedList };
+                return { favorites, priorityList, dailyList, completedList };
             };
 
-            const { priorityList, dailyList, completedList } = getFilteredTaskLists();
+            const { favorites, priorityList, dailyList, completedList } = getFilteredTaskLists();
 
             // Calendar Renderer
             const renderCalendar = () => {
@@ -1204,8 +1236,9 @@
 
                                 {/* Smart Task List */}
                                 <div className="space-y-6 pb-12">
-                                    {priorityList.length === 0 && dailyList.length === 0 && completedList.length === 0 && <div className="text-center py-8 text-slate-400 text-xs">無任務</div>}
+                                    {favorites.length === 0 && priorityList.length === 0 && dailyList.length === 0 && completedList.length === 0 && <div className="text-center py-8 text-slate-400 text-xs">無任務</div>}
                                     
+                                    {renderTaskSection(favorites, "🌟 關注任務")}
                                     {renderTaskSection(priorityList, "🔥 重要 / 週期性")}
                                     {renderTaskSection(dailyList, "📅 每日例行")}
                                     {completedList.length > 0 && (
@@ -1228,7 +1261,7 @@
                                             <input type="number" placeholder="等級需求" className="col-span-1 px-2 py-1.5 min-w-0" value={newReward.levelReq} onChange={(e) => setNewReward({...newReward, levelReq: e.target.value})} />
                                         </div>
                                         <div className="flex gap-2">
-                                            <input type="number" placeholder="價格" className="flex-1 px-2 py-1.5 min-w-0" value={newReward.cost || ''} onChange={(e) => setNewReward({...newReward, cost: e.target.value})} />
+                                            <input type="number" placeholder="價格 ($Z)" className="flex-1 px-2 py-1.5 min-w-0" value={newReward.cost || ''} onChange={(e) => setNewReward({...newReward, cost: e.target.value})} />
                                             <select className="w-20 shrink-0 px-1 py-1.5 text-xs" value={newReward.currency} onChange={(e) => setNewReward({...newReward, currency: e.target.value})}><option value="zeny">Zeny</option><option value="stamina">STA</option></select>
                                         </div>
                                         <Button variant="primary" onClick={handleAddReward} className="w-full py-2 text-xs"><Plus size={14} /> 上架商品</Button>
