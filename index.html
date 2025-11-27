@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Final Fixed v5.5</title>
+    <title>LifeRPG - Final Fixed v5.6</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -180,7 +180,7 @@
             Trophy, Zap, CheckCircle2, Plus, Trash2, Dumbbell, BookOpen, Home, 
             TrendingUp, Lock, Unlock, Star, RefreshCw, X, Briefcase, Heart, 
             Calendar, Clock, Repeat, Download, Filter, HardHat, Info, Settings, Upload, Save, Sword, User, Crown, Sparkles, Gift, Coins, ShoppingBag, Battery,
-            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, ArrowRight, Star: StarIcon
+            ChevronLeft, ChevronRight, RotateCcw, Volume2, VolumeX, ArrowRight, Star: StarIcon, Coffee, ShoppingCart
         } = LucideReact;
 
         // --- Audio System ---
@@ -404,9 +404,9 @@
             const [rewards, setRewards] = React.useState(() => {
                 const saved = localStorage.getItem('liferpg-rewards-v2');
                 return saved ? JSON.parse(saved) : [
-                    { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, cost: 600, currency: 'zeny', unlocked: false },
-                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', unlocked: false },
-                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true },
+                    { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, cost: 600, currency: 'zeny', category: 'food', unlocked: false },
+                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', category: 'special', unlocked: true },
                 ];
             });
 
@@ -424,7 +424,7 @@
             const [showCalendar, setShowCalendar] = React.useState(false); 
 
             const [newTask, setNewTask] = React.useState({ title: '', category: 'fitness', xp: 20, repeat: 'daily', frequency: 1 });
-            const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100 });
+            const [newReward, setNewReward] = React.useState({ title: '', reqType: 'base', levelReq: 2, cost: 100, category: 'food' });
             const [newJobTitle, setNewJobTitle] = React.useState(""); 
 
             // Date Management
@@ -449,6 +449,13 @@
                 general: { type: 'base', bg: "bg-gray-100 text-gray-800", icon: <Star size={14} />, label: "一般" },
             };
 
+            const rewardCategories = {
+                food: { label: "🍔 飲食享受", color: "text-orange-600 border-orange-200 bg-orange-50" },
+                relax: { label: "💤 休息放鬆", color: "text-teal-600 border-teal-200 bg-teal-50" },
+                shopping: { label: "🛍️ 購物犒賞", color: "text-pink-600 border-pink-200 bg-pink-50" },
+                special: { label: "✨ 特殊功能", color: "text-purple-600 border-purple-200 bg-purple-50" }
+            };
+
             const showNotification = (message, type = 'info') => {
                 setNotification({ message, type });
                 setTimeout(() => setNotification(null), 3000);
@@ -464,6 +471,19 @@
 
             // Migration & Daily Logic & Sync with History & VISIBILITY CHECK
             React.useEffect(() => {
+                // Auto Migration for Reward Categories
+                setRewards(prevRewards => prevRewards.map(r => {
+                    if (r.category) return r;
+                    let cat = 'shopping'; 
+                    if (r.currency === 'stamina') cat = 'special';
+                    else if (r.title.match(/喝|吃|餐|酒|肉|外送|垃圾食物/)) cat = 'food';
+                    else if (r.title.match(/睡|電玩|遊戲|放空|發呆|滑手機|咖啡|無所事事/)) cat = 'relax';
+                    
+                    if (r.title.match(/買|預算|禮包|課金|小物|內褲/)) cat = 'shopping';
+                    
+                    return { ...r, category: cat };
+                }));
+
                 // 1. Sync custom tasks
                 setTasks(prevTasks => prevTasks.map(t => {
                     if (t.repeat === 'custom' && !t.lastCompleted) {
@@ -507,7 +527,6 @@
                     const lastDate = savedState.lastVisitDate;
                     const lastWeek = savedState.lastVisitWeek;
                     
-                    // *** 強制每日任務校正 Logic v5.4 ***
                     let forcedTasksChanged = false;
 
                     setTasks(prevTasks => {
@@ -875,7 +894,7 @@
             const handleAddReward = (e) => {
                 e.preventDefault();
                 if (!newReward.title.trim()) return;
-                setRewards([...rewards, { id: Date.now(), title: newReward.title, reqType: newReward.reqType, levelReq: parseInt(newReward.levelReq), cost: parseInt(newReward.cost || 0), currency: newReward.currency || 'zeny', unlocked: false }]);
+                setRewards([...rewards, { id: Date.now(), title: newReward.title, reqType: newReward.reqType, levelReq: parseInt(newReward.levelReq), cost: parseInt(newReward.cost || 0), currency: newReward.currency || 'zeny', category: newReward.category || 'shopping', unlocked: false }]);
                 setNewReward(prev => ({ ...prev, title: '', cost: 100, currency: 'zeny' })); 
                 sfx.confirm();
                 showNotification("新增獎勵", "success");
@@ -886,7 +905,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.5" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.6" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -945,21 +964,29 @@
 
             const handleImportRewardPack = () => {
                 const rewardPack = [
-                    { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny', unlocked: false },
-                    { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny', unlocked: false },
-                    { id: 4003, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
-                    { id: 4004, title: "無所事事 (純放空 1小時)", reqType: 'base', levelReq: 1, cost: 100, currency: 'zeny', unlocked: false },
-                    
-                    { id: 4030, title: "「完全廢人」滑手機券（30分鐘）", reqType: 'base', levelReq: 1, cost: 50, currency: 'zeny', unlocked: false },
-                    { id: 4031, title: "「暫停大腦」發呆券（15分鐘）", reqType: 'base', levelReq: 1, cost: 30, currency: 'zeny', unlocked: false },
-                    { id: 4032, title: "「無腦垃圾食物」額度（小份）", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
+                    { id: 4002, title: "喝一杯手搖飲 (加料!)", reqType: 'base', levelReq: 3, cost: 80, currency: 'zeny', category: 'food', unlocked: false },
+                    { id: 4032, title: "「無腦垃圾食物」額度（小份）", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', category: 'food', unlocked: false },
+                    { id: 1, title: "放縱餐", reqType: 'base', levelReq: 2, cost: 600, currency: 'zeny', category: 'food', unlocked: false },
+                    { id: 4006, title: "週末小酌一杯", reqType: 'base', levelReq: 4, cost: 300, currency: 'zeny', category: 'food', unlocked: false },
+                    { id: 4040, title: "外送使用券 (免運/服務費)", reqType: 'base', levelReq: 2, cost: 150, currency: 'zeny', category: 'food', unlocked: false },
+                    { id: 4041, title: "高品質原肉預算 ($500)", reqType: 'job', levelReq: 3, cost: 800, currency: 'zeny', category: 'food', unlocked: false },
 
-                    { id: 4020, title: "平價內褲預算 ($500)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', unlocked: false },
-                    { id: 4022, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny', unlocked: false },
-                    { id: 4024, title: "專櫃內褲預算 ($1000)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', unlocked: false },
-                    { id: 4025, title: "高級內褲禮包 ($5000)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', unlocked: false },
-                    
-                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true }
+                    { id: 4001, title: "無罪惡感打電動 1小時", reqType: 'base', levelReq: 1, cost: 150, currency: 'zeny', category: 'relax', unlocked: false },
+                    { id: 4003, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', category: 'relax', unlocked: false },
+                    { id: 4004, title: "無所事事 (純放空 1小時)", reqType: 'base', levelReq: 1, cost: 100, currency: 'zeny', category: 'relax', unlocked: false },
+                    { id: 4030, title: "「完全廢人」滑手機券（30分鐘）", reqType: 'base', levelReq: 1, cost: 50, currency: 'zeny', category: 'relax', unlocked: false },
+                    { id: 4031, title: "「暫停大腦」發呆券（15分鐘）", reqType: 'base', levelReq: 1, cost: 30, currency: 'zeny', category: 'relax', unlocked: false },
+                    { id: 4005, title: "去咖啡廳發呆/閱讀", reqType: 'base', levelReq: 3, cost: 250, currency: 'zeny', category: 'relax', unlocked: false },
+
+                    { id: 4020, title: "平價內褲預算 ($500)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 4024, title: "專櫃內褲預算 ($1000)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 4025, title: "高級內褲禮包 ($5000)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 4022, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 2, title: "買新遊戲", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 4010, title: "新家軟裝小物 ($1000內)", reqType: 'job', levelReq: 6, cost: 5000, currency: 'zeny', category: 'shopping', unlocked: false },
+                    { id: 4042, title: "健身品牌服飾預算", reqType: 'job', levelReq: 5, cost: 3000, currency: 'zeny', category: 'shopping', unlocked: false },
+
+                    { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', category: 'special', unlocked: true }
                 ];
 
                 const currentRewards = Array.isArray(rewards) ? rewards : [];
@@ -1002,6 +1029,36 @@
                     </div>
                 );
             };
+
+            // Render Reward Section
+            const renderRewardSection = (rewardList, title, colorClass) => {
+                if (rewardList.length === 0) return null;
+                return (
+                    <div className="mb-4 animate-slide-in">
+                         <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-2 border-b pb-1 ${colorClass}`}>{title}</h3>
+                         <div className="grid grid-cols-1 gap-2">
+                            {rewardList.map(reward => {
+                                const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
+                                const cost = reward.cost || 0;
+                                const currency = reward.currency || 'zeny';
+                                const canAfford = currency === 'zeny' ? (user.zeny || 0) >= cost : (user.stamina?.current || 0) >= cost;
+                                return (
+                                    <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-white' : 'bg-gray-200 opacity-80'}`}>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`p-1.5 rounded shrink-0 ${isUnlocked ? (currency === 'stamina' ? 'text-emerald-600 bg-emerald-100' : 'text-blue-600 bg-blue-100') : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}</div>
+                                            <div className="min-w-0">
+                                                <h3 className="font-bold text-sm text-slate-700 truncate">{reward.title}</h3>
+                                                <div className="flex items-center gap-2 text-[10px]"><span className={`font-pixel whitespace-nowrap ${isUnlocked ? (canAfford ? (currency === 'stamina' ? 'text-emerald-600 font-bold' : 'text-yellow-600 font-bold') : 'text-red-500') : 'text-slate-400'}`}>{currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}</span>{!isUnlocked && <span className="text-red-400 whitespace-nowrap">Req: Lv.{reward.levelReq}</span>}</div>
+                                            </div>
+                                        </div>
+                                        {isUnlocked ? <Button onClick={() => handleRedeemReward(reward)} variant={canAfford ? (currency === 'stamina' ? "primary" : "green") : "outline"} disabled={!canAfford && currency === 'zeny'} className="text-xs py-1 px-2 ml-2 shrink-0">購買</Button> : <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500 ml-2 shrink-0"><Trash2 size={14} /></button>}
+                                    </div>
+                                );
+                            })}
+                         </div>
+                    </div>
+                );
+            }
 
             const renderTaskItem = (task) => {
                 const cat = categories[task.category] || categories.general;
@@ -1127,6 +1184,17 @@
             };
 
             const { favorites, priorityList, dailyList, completedList } = getFilteredTaskLists();
+
+            const getFilteredRewards = () => {
+                const grouped = { food: [], relax: [], shopping: [], special: [], other: [] };
+                rewards.forEach(r => {
+                    if (grouped[r.category]) grouped[r.category].push(r);
+                    else grouped.other.push(r);
+                });
+                return grouped;
+            }
+            
+            const groupedRewards = getFilteredRewards();
 
             // Calendar Renderer
             const renderCalendar = () => {
@@ -1272,25 +1340,12 @@
                                     </div>
                                 </Card>
                                 <div className="flex justify-end"><button onClick={handleImportRewardPack} className="ro-btn-base px-2 py-1.5 rounded text-xs font-bold flex items-center gap-1 bg-slate-700 text-pink-300 border border-slate-600 hover:bg-slate-600"><Gift size={12} /> 獎勵包</button></div>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {rewards.sort((a,b) => (a.currency === b.currency) ? (a.cost || 0) - (b.cost || 0) : a.currency === 'stamina' ? 1 : -1).map((reward) => {
-                                        const isUnlocked = (reward.reqType === 'base' ? user.base.level : user.job.level) >= reward.levelReq;
-                                        const cost = reward.cost || 0;
-                                        const currency = reward.currency || 'zeny';
-                                        const canAfford = currency === 'zeny' ? (user.zeny || 0) >= cost : (user.stamina?.current || 0) >= cost;
-                                        return (
-                                            <div key={reward.id} className={`relative p-3 ro-window flex items-center justify-between ${isUnlocked ? 'bg-white' : 'bg-gray-200 opacity-80'}`}>
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <div className={`p-1.5 rounded shrink-0 ${isUnlocked ? (currency === 'stamina' ? 'text-emerald-600 bg-emerald-100' : 'text-blue-600 bg-blue-100') : 'text-slate-400 bg-slate-200'}`}>{isUnlocked ? <ShoppingBag size={16} /> : <Lock size={16} />}</div>
-                                                    <div className="min-w-0">
-                                                        <h3 className="font-bold text-sm text-slate-700 truncate">{reward.title}</h3>
-                                                        <div className="flex items-center gap-2 text-[10px]"><span className={`font-pixel whitespace-nowrap ${isUnlocked ? (canAfford ? (currency === 'stamina' ? 'text-emerald-600 font-bold' : 'text-yellow-600 font-bold') : 'text-red-500') : 'text-slate-400'}`}>{currency === 'stamina' ? `${cost} STA` : `$${cost} Z`}</span>{!isUnlocked && <span className="text-red-400 whitespace-nowrap">Req: Lv.{reward.levelReq}</span>}</div>
-                                                    </div>
-                                                </div>
-                                                {isUnlocked ? <Button onClick={() => handleRedeemReward(reward)} variant={canAfford ? (currency === 'stamina' ? "primary" : "green") : "outline"} disabled={!canAfford && currency === 'zeny'} className="text-xs py-1 px-2 ml-2 shrink-0">購買</Button> : <button onClick={() => handleDeleteReward(reward.id)} className="text-slate-400 hover:text-red-500 ml-2 shrink-0"><Trash2 size={14} /></button>}
-                                            </div>
-                                        );
-                                    })}
+                                <div className="space-y-4">
+                                    {renderRewardSection(groupedRewards.food, "🍔 飲食享受", rewardCategories.food.color)}
+                                    {renderRewardSection(groupedRewards.relax, "💤 休息放鬆", rewardCategories.relax.color)}
+                                    {renderRewardSection(groupedRewards.shopping, "🛍️ 購物犒賞", rewardCategories.shopping.color)}
+                                    {renderRewardSection(groupedRewards.special, "✨ 特殊功能", rewardCategories.special.color)}
+                                    {renderRewardSection(groupedRewards.other, "📦 其他", "text-slate-600 border-slate-300")}
                                 </div>
                             </div>
                         )}
