@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LifeRPG - Final Fixed v5.4</title>
+    <title>LifeRPG - Final Fixed v5.5</title>
     
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -507,12 +507,8 @@
                     const lastDate = savedState.lastVisitDate;
                     const lastWeek = savedState.lastVisitWeek;
                     
-                    // *** 強制每日任務校正 Logic v5.3 ***
-                    const getDaysDiff = (date1, date2) => {
-                        const d1 = new Date(date1); d1.setHours(0,0,0,0);
-                        const d2 = new Date(date2); d2.setHours(0,0,0,0);
-                        return Math.floor((d1 - d2) / (1000 * 60 * 60 * 24));
-                    }
+                    // *** 強制每日任務校正 Logic v5.4 ***
+                    let forcedTasksChanged = false;
 
                     setTasks(prevTasks => {
                         const newTasks = prevTasks.map(t => {
@@ -531,6 +527,7 @@
                                 }
                                 
                                 if (shouldReset) {
+                                    forcedTasksChanged = true;
                                     return { 
                                         ...t, 
                                         completed: false, 
@@ -541,8 +538,11 @@
                             }
                             
                             if (t.repeat === 'custom' && t.completed && t.lastCompleted) {
-                                 const daysPassed = getDaysDiff(now, new Date(t.lastCompleted));
-                                 if (daysPassed >= (t.frequency || 1)) {
+                                 const lastCompDate = new Date(t.lastCompleted);
+                                 const diffTime = Math.abs(now - lastCompDate);
+                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                 if (diffDays >= (t.frequency || 1)) {
+                                     forcedTasksChanged = true;
                                      return { ...t, completed: false };
                                  }
                             }
@@ -886,7 +886,7 @@
             // Import/Export
             const handleExportData = () => {
                 sfx.confirm();
-                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.4" };
+                const data = { user, tasks, rewards, history, appState, dailyCompletions, version: "5.5" };
                 const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -950,10 +950,14 @@
                     { id: 4003, title: "週末睡到自然醒", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
                     { id: 4004, title: "無所事事 (純放空 1小時)", reqType: 'base', levelReq: 1, cost: 100, currency: 'zeny', unlocked: false },
                     
-                    { id: 4020, title: "網購平價內褲 (1件)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', unlocked: false },
+                    { id: 4030, title: "「完全廢人」滑手機券（30分鐘）", reqType: 'base', levelReq: 1, cost: 50, currency: 'zeny', unlocked: false },
+                    { id: 4031, title: "「暫停大腦」發呆券（15分鐘）", reqType: 'base', levelReq: 1, cost: 30, currency: 'zeny', unlocked: false },
+                    { id: 4032, title: "「無腦垃圾食物」額度（小份）", reqType: 'base', levelReq: 2, cost: 200, currency: 'zeny', unlocked: false },
+
+                    { id: 4020, title: "平價內褲預算 ($500)", reqType: 'job', levelReq: 2, cost: 800, currency: 'zeny', unlocked: false },
                     { id: 4022, title: "Steam/遊戲課金 ($500內)", reqType: 'job', levelReq: 4, cost: 3000, currency: 'zeny', unlocked: false },
-                    { id: 4024, title: "專櫃/高質感內褲 (1件)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', unlocked: false },
-                    { id: 4025, title: "奢華成套內衣褲 (全套)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', unlocked: false },
+                    { id: 4024, title: "專櫃內褲預算 ($1000)", reqType: 'job', levelReq: 7, cost: 3500, currency: 'zeny', unlocked: false },
+                    { id: 4025, title: "高級內褲禮包 ($5000)", reqType: 'job', levelReq: 15, cost: 6000, currency: 'zeny', unlocked: false },
                     
                     { id: 999, title: "聖人模式 (釋放)", reqType: 'base', levelReq: 1, cost: 100, currency: 'stamina', unlocked: true }
                 ];
